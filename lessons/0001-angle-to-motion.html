@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lesson 01 — One angle, two directions</title>
+  <meta name="description" content="Derive the car's movement code from the velocity triangle: why sine drives x, cosine drives y, and why both are negative on a canvas.">
+  <link rel="stylesheet" href="../assets/lesson.css">
+</head>
+<body>
+  <article class="lesson">
+    <header class="lesson-header">
+      <p class="kicker">Lesson 01 · Trigonometry for the car</p>
+      <h1>One angle, two directions</h1>
+      <p class="dek">The car's entire movement system is two lines of code. Derive them once, and you can predict the car's path in your head — no running the program.</p>
+
+      <dl class="meta">
+        <div>
+          <dt>Time</dt>
+          <dd>12–15 minutes</dd>
+        </div>
+        <div>
+          <dt>Prerequisite</dt>
+          <dd>SOHCAHTOA</dd>
+        </div>
+        <div>
+          <dt>Code under study</dt>
+          <dd><code>car.js</code>, lines 46–58</dd>
+        </div>
+        <div>
+          <dt>Mission</dt>
+          <dd><a href="../MISSION.md">derive, don't copy</a></dd>
+        </div>
+      </dl>
+    </header>
+
+    <aside class="mission">
+      <p class="eyebrow">Why this matters</p>
+      <p><strong>Your mission is to learn the math deeply enough to derive it.</strong> By the end of this lesson you will predict the car's next position from its angle and speed, and explain why both terms are negative. Steering, sensors, and the rest of the self-driving car are built on this one triangle.</p>
+    </aside>
+
+    <p class="lede">Start with the two lines that move the car. Everything else in <code>car.js</code> exists to feed them an angle and a speed.</p>
+
+    <section aria-labelledby="section-two-lines">
+      <h2 id="section-two-lines"><span class="sec-num">Section 01</span>The whole movement system is two lines</h2>
+
+      <figure class="code-figure">
+        <pre><code><span class="comment">// car.js — steering and movement inside #move()</span>
+if (this.speed != 0) {
+    const flip = this.speed &gt; 0 ? 1 : -1;
+    if (this.controls.left) {
+        this.angle += 0.03 * flip;
+    }
+    if (this.controls.right) {
+        this.angle -= 0.03 * flip;
+    }
+}
+
+<span class="hl">this.x -= Math.sin(this.angle) * this.speed;</span>
+<span class="hl">this.y -= Math.cos(this.angle) * this.speed;</span></code></pre>
+        <figcaption><strong>Listing 1.</strong> Steering changes <code>this.angle</code>; acceleration changes <code>this.speed</code>. The two highlighted lines turn that pair into a new position. The <code>flip</code> is a reverse-gear sign convention, not trigonometry — we will unpack it in a later lesson.</figcaption>
+      </figure>
+
+      <p>Steering does one thing: it adds or subtracts <code>0.03</code> from the angle. Acceleration does one thing: it changes the speed. The rest is these two lines.</p>
+
+      <p>Try the simplest case. If <code>angle = 0</code> and <code>speed = 2</code>, then <code>sin(0) = 0</code> and <code>cos(0) = 1</code>. So x does not change, and y drops by 2. On a canvas, y grows <em>downward</em>, so the car moves up. That matches the rectangle in <code>draw()</code>, whose nose points up at angle 0.</p>
+
+      <p>Now try <code>angle = Math.PI / 2</code> (90°) and <code>speed = 2</code>. Then <code>sin = 1</code> and <code>cos = 0</code>. The car's x drops by 2 and y does not change: it moves left. So a positive angle turns the car left. That is the convention the rest of the code assumes.</p>
+
+      <aside class="callout">
+        <p class="callout-title">The question to keep asking</p>
+        <p>Why does sine move x here, when school taught you that sine goes with y? And why are both terms subtracted? The answers are not arbitrary. They come from where the angle is measured and where the canvas puts its axes.</p>
+      </aside>
+    </section>
+
+    <section aria-labelledby="section-triangle">
+      <h2 id="section-triangle"><span class="sec-num">Section 02</span>Put the speed on the hypotenuse</h2>
+
+      <p>The car's velocity is a <strong>vector</strong>: it has a length (the speed) and a direction (the angle). To move on a grid, split that vector into two perpendicular components — how much it moves up, and how much it moves left.</p>
+
+      <p>Draw the velocity as the hypotenuse of a right triangle. The angle θ sits at the car, between the nose (up) and the heading. The leg <em>next to</em> θ is the vertical leg. The leg <em>across from</em> θ is the horizontal leg.</p>
+
+      <figure>
+        <svg class="diagram" viewBox="0 0 720 430" role="img" aria-labelledby="velocity-triangle-title velocity-triangle-desc">
+          <title id="velocity-triangle-title">The car's velocity triangle</title>
+          <desc id="velocity-triangle-desc">A right triangle with the speed as the hypotenuse, an up leg of speed times cosine theta, and a left leg of speed times sine theta. The angle theta is measured from the vertical up direction.</desc>
+          <defs>
+            <marker id="fig-arrow-ink" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--ink)"></path>
+            </marker>
+            <marker id="fig-arrow-x" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--accent)"></path>
+            </marker>
+            <marker id="fig-arrow-y" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--blue)"></path>
+            </marker>
+          </defs>
+
+          <rect width="720" height="430" fill="var(--paper-raised)"></rect>
+
+          <text x="690" y="48" class="diagram-label" text-anchor="end">θ is measured from the nose (up), not from +x</text>
+
+          <g aria-hidden="true">
+            <text x="500" y="314" class="axis-label">Screen axes</text>
+            <line x1="500" y1="340" x2="578" y2="340" class="axis-line" marker-end="url(#fig-arrow-ink)"></line>
+            <line x1="500" y1="340" x2="500" y2="410" class="axis-line" marker-end="url(#fig-arrow-ink)"></line>
+            <text x="584" y="344" class="axis-label">+x</text>
+            <text x="504" y="422" class="axis-label">+y</text>
+            <text x="488" y="366" class="axis-label" text-anchor="end">left = −x</text>
+            <text x="488" y="386" class="axis-label" text-anchor="end">up = −y</text>
+          </g>
+
+          <line x1="250" y1="350" x2="250" y2="134" class="leg-y" marker-end="url(#fig-arrow-y)"></line>
+          <line x1="250" y1="134" x2="125" y2="134" class="leg-x" marker-end="url(#fig-arrow-x)"></line>
+          <line x1="250" y1="350" x2="125" y2="134" class="heading-line" marker-end="url(#fig-arrow-ink)"></line>
+
+          <path d="M 250 280 A 70 70 0 0 0 215 289.4" class="angle-arc"></path>
+          <text x="233" y="304" class="angle-label" text-anchor="middle">θ</text>
+
+          <text x="262" y="240" class="comp-label comp-label--y">up: speed · cos θ</text>
+          <text x="187.5" y="122" class="comp-label comp-label--x" text-anchor="middle">left: speed · sin θ</text>
+          <text x="164" y="228" class="speed-label" text-anchor="end">speed</text>
+
+          <circle cx="250" cy="350" r="4" class="origin-dot"></circle>
+          <text x="250" y="376" class="diagram-label" text-anchor="middle">car (origin)</text>
+        </svg>
+        <figcaption><strong>Figure 1.</strong> The velocity triangle for a 30° left turn. The speed is the hypotenuse. The vertical leg is the part moving up; the horizontal leg is the part moving left. The angle is measured from the car's nose, so cosine belongs to the vertical leg and sine to the horizontal leg.</figcaption>
+      </figure>
+
+      <p>Now read the triangle with SOHCAHTOA, treating each ratio as a percentage of the hypotenuse:</p>
+
+      <ul>
+        <li><strong>Cosine</strong> is adjacent over hypotenuse: <code>cos θ = up / speed</code>, so <code>up = speed · cos θ</code>.</li>
+        <li><strong>Sine</strong> is opposite over hypotenuse: <code>sin θ = left / speed</code>, so <code>left = speed · sin θ</code>.</li>
+      </ul>
+
+      <p>The hypotenuse is not the car's length. It is the velocity vector, drawn from the car's center. The car itself is just the origin of that vector.</p>
+
+      <aside class="callout callout--gold">
+        <p class="callout-title">Why sine is on x here</p>
+        <p>In school, θ is usually measured from the <code>+x</code> axis, so cosine goes with x and sine goes with y. The car measures θ from its nose — straight up. Rotate your mental protractor 90° counterclockwise, and the roles swap. The formula did not change. The reference direction did.</p>
+      </aside>
+    </section>
+
+    <section aria-labelledby="section-screen">
+      <h2 id="section-screen"><span class="sec-num">Section 03</span>The screen subtracts both components</h2>
+
+      <p>A canvas coordinate system is not the math plot you drew triangles on. Its origin is the top-left corner: <code>x</code> increases to the right, and <code>y</code> increases <em>downward</em>. The car's up is therefore <code>−y</code>, and a left turn is <code>−x</code>.</p>
+
+      <p>Substitute those screen directions into the triangle:</p>
+
+      <div class="formula-block">
+        <span class="formula-label">Screen displacement for one frame</span>
+        <span class="y">Δy</span> = −speed · cos θ &nbsp;&nbsp; <span style="color: var(--muted); font-family: var(--sans); font-size: 0.72rem;">(up is negative y)</span><br>
+        <em>Δx</em> = −speed · sin θ &nbsp;&nbsp; <span style="color: var(--muted); font-family: var(--sans); font-size: 0.72rem;">(left is negative x)</span>
+      </div>
+
+      <p>That is exactly the code. Writing <code>this.x -= Math.sin(...) * speed</code> is the same as adding <code>−sin θ · speed</code>. The subtraction is not a quirk of the programmer. It is the screen's coordinate system showing up in the formula.</p>
+
+      <div class="table-wrap">
+        <table>
+          <caption>The sign decoder</caption>
+          <thead>
+            <tr>
+              <th scope="col">Quantity</th>
+              <th scope="col">Positive direction</th>
+              <th scope="col">What the code does</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Screen x</td>
+              <td>Right</td>
+              <td>Left movement subtracts from x.</td>
+            </tr>
+            <tr>
+              <td>Screen y</td>
+              <td>Down</td>
+              <td>Up movement subtracts from y.</td>
+            </tr>
+            <tr>
+              <td>Car angle θ</td>
+              <td>Left / counterclockwise</td>
+              <td>The left arrow adds <code>0.03</code> rad.</td>
+            </tr>
+            <tr>
+              <td>Canvas rotation</td>
+              <td>Clockwise</td>
+              <td>The car is drawn with <code>rotate(−θ)</code>.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="table-note">Canvas rotation is clockwise for positive angles because y points down. See <a href="https://developer.mozilla.org/en-US/docs/Web/API/Canvas_API/Tutorial/Transformations" target="_blank" rel="noreferrer">MDN's canvas transformations guide</a> and the <a href="https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/rotate" target="_blank" rel="noreferrer">rotate() reference</a>.</p>
+
+      <aside class="callout callout--note">
+        <p class="callout-title">What is a trig fact and what is a screen fact?</p>
+        <p>In a math plot with y pointing up, the same triangle gives <code>(−sin θ, +cos θ)</code>. The minus on x comes from turning left; the minus on y comes from the canvas. Do not memorize the two lines as one inseparable blob. Separate the triangle from the coordinate system and you can re-derive them anywhere.</p>
+      </aside>
+
+      <p>You will meet the same reconciliation in <code>draw()</code>: <code>ctx.rotate(-this.angle)</code>. Canvas's positive rotation is clockwise, while the car's positive angle is counterclockwise. The minus sign makes the drawing agree with the movement. We will take that apart in the next lesson.</p>
+    </section>
+
+    <section aria-labelledby="section-unit-circle">
+      <h2 id="section-unit-circle"><span class="sec-num">Section 04</span>The unit circle is the speed = 1 case</h2>
+
+      <p>Set the speed to 1. The formulas collapse to <code>Δx = −sin θ</code> and <code>Δy = −cos θ</code>. Plot that point for every possible θ and you get a circle of radius 1: the <strong>unit circle</strong>. Sine and cosine are simply the coordinates of a point on that circle, after rotating the starting point from <code>+x</code> to up and flipping y for the screen.</p>
+
+      <p>The right-triangle picture only works for angles between 0° and 90°. The circle extends the same pattern to every angle, including negative angles and angles past a full turn. That is why the car can keep turning and the formulas never break. See <a href="https://www.khanacademy.org/math/trigonometry/unit-circle-trig-func/unit-circle-definition-of-trig-functions/v/unit-circle-definition-of-trig-functions-1" target="_blank" rel="noreferrer">Khan Academy's unit circle introduction</a> or <a href="https://betterexplained.com/articles/intuitive-trigonometry/" target="_blank" rel="noreferrer">Better Explained's intuitive trigonometry</a> for the full picture.</p>
+
+      <div class="table-wrap">
+        <table>
+          <caption>Cardinal directions at speed 2</caption>
+          <thead>
+            <tr>
+              <th scope="col">θ</th>
+              <th scope="col" class="num">sin θ</th>
+              <th scope="col" class="num">cos θ</th>
+              <th scope="col" class="num">Δx = −2 sin θ</th>
+              <th scope="col" class="num">Δy = −2 cos θ</th>
+              <th scope="col">Screen direction</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>0°</td>
+              <td class="num">0</td>
+              <td class="num">1</td>
+              <td class="num">0</td>
+              <td class="num">−2</td>
+              <td>Up</td>
+            </tr>
+            <tr>
+              <td>90°</td>
+              <td class="num">1</td>
+              <td class="num">0</td>
+              <td class="num">−2</td>
+              <td class="num">0</td>
+              <td>Left</td>
+            </tr>
+            <tr>
+              <td>180°</td>
+              <td class="num">0</td>
+              <td class="num">−1</td>
+              <td class="num">0</td>
+              <td class="num">+2</td>
+              <td>Down</td>
+            </tr>
+            <tr>
+              <td>270°</td>
+              <td class="num">−1</td>
+              <td class="num">0</td>
+              <td class="num">+2</td>
+              <td class="num">0</td>
+              <td>Right</td>
+            </tr>
+            <tr>
+              <td>360°</td>
+              <td class="num">0</td>
+              <td class="num">1</td>
+              <td class="num">0</td>
+              <td class="num">−2</td>
+              <td>Up again</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="table-note">Speed is fixed at 2 px/frame for this table. The real car allows reverse speeds down to −1.5; a negative speed flips both components, which is exactly what reverse should do.</p>
+
+      <aside class="callout callout--note">
+        <p class="callout-title">The minus signs are fixed; the results are not</p>
+        <p>Both formulas carry a minus sign, but that does not make both components negative at every angle. <code>Δx</code> is negative only while <code>sin θ &gt; 0</code> — the nose is on the left half of the circle. <code>Δy</code> is negative only while <code>cos θ &gt; 0</code> — the nose points upward. At 120° the car points down-left: <code>Δx</code> stays negative, but <code>Δy</code> becomes positive. At −30° the car points up-right: <code>Δy</code> stays negative, but <code>Δx</code> becomes positive. The roles never swap: sine always scales the sideways component, cosine always the forward component. At 210° the nose is only 30° from straight down, so the down component is the larger one.</p>
+      </aside>
+
+      <aside class="callout callout--note">
+        <p class="callout-title">Radians in one breath</p>
+        <p><code>Math.sin</code> and <code>Math.cos</code> take radians, not degrees. The car's steering adds <code>0.03</code> rad per frame, which is about 1.72°. A full turn is <code>2π ≈ 6.28</code> rad. The angle is never reset, and it does not need to be: sine and cosine repeat every 2π. Convert with <code>degrees * Math.PI / 180</code> when you want human units.</p>
+      </aside>
+
+      <aside class="callout callout--gold">
+        <p class="callout-title">Numbers worth knowing</p>
+        <p>At 30°, <code>sin = 0.5</code> and <code>cos ≈ 0.866</code>. At 45°, both are <code>≈ 0.707</code>. At 60°, they swap: <code>sin ≈ 0.866</code>, <code>cos = 0.5</code>. These four values cover most of the mental arithmetic you will do while debugging.</p>
+      </aside>
+    </section>
+
+    <section aria-labelledby="section-lab">
+      <h2 id="section-lab"><span class="sec-num">Section 05</span>Heading lab: turn the angle, watch the components</h2>
+
+      <p>Before you drag anything, commit to a prediction. At θ = 30° and speed 2, which is larger: the sideways step or the up step? Then check the readout. <em>Hint: cos 30° is larger than sin 30°.</em></p>
+
+      <figure class="figure-wide">
+        <div class="lab" data-heading-lab>
+          <div class="lab-head">
+            <div>
+              <p class="eyebrow">Interactive · Heading lab</p>
+              <h3>One angle in, two screen components out</h3>
+            </div>
+          </div>
+
+          <div class="lab-grid">
+            <div class="lab-panel">
+              <svg class="lab-svg" viewBox="0 0 360 360" role="img" aria-labelledby="lab-circle-title">
+                <title id="lab-circle-title">Unit circle: the car's heading and its sine and cosine components</title>
+                <defs>
+                  <pattern id="lab-grid-circle" width="30" height="30" patternUnits="userSpaceOnUse">
+                    <path d="M 30 0 L 0 0 0 30" fill="none" stroke="var(--rule)" stroke-width="1"></path>
+                  </pattern>
+                  <marker id="lab-arrow-circle" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto">
+                    <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--ink)"></path>
+                  </marker>
+                </defs>
+
+                <rect x="20" y="20" width="320" height="320" fill="url(#lab-grid-circle)" opacity="0.55"></rect>
+                <line x1="30" y1="190" x2="330" y2="190" class="axis-line"></line>
+                <line x1="180" y1="40" x2="180" y2="340" class="axis-line"></line>
+                <text x="330" y="182" class="axis-label" text-anchor="end">+x</text>
+                <text x="180" y="32" class="axis-label" text-anchor="middle">−y</text>
+                <text x="180" y="354" class="axis-label" text-anchor="middle">+y</text>
+                <text x="30" y="182" class="axis-label">−x</text>
+                <text x="26" y="38" class="axis-label">unit circle</text>
+                <text x="26" y="52" class="axis-label" style="text-transform: none; letter-spacing: 0;">r = 1</text>
+
+                <circle cx="180" cy="190" r="120" class="unit-circle"></circle>
+                <line x1="180" y1="190" x2="180" y2="70" class="leg-y-dashed" opacity="0.45"></line>
+                <text x="186" y="74" class="axis-label">0°</text>
+
+                <line data-lab-heading x1="180" y1="190" x2="180" y2="70" class="heading-line" marker-end="url(#lab-arrow-circle)"></line>
+                <line data-lab-leg-x x1="180" y1="190" x2="180" y2="190" class="leg-x"></line>
+                <line data-lab-leg-y x1="180" y1="190" x2="180" y2="70" class="leg-y"></line>
+
+                <polyline data-lab-arc class="angle-arc" points=""></polyline>
+                <text data-lab-angle-label class="angle-label" x="190" y="160" text-anchor="middle">θ</text>
+
+                <text data-lab-label-x class="comp-label comp-label--x" x="150" y="212" text-anchor="middle">sin θ</text>
+                <text data-lab-label-y class="comp-label comp-label--y" x="192" y="130" text-anchor="start">cos θ</text>
+
+                <circle cx="180" cy="190" r="3.2" class="origin-dot"></circle>
+                <g data-lab-car transform="rotate(0 180 190)">
+                  <rect x="171" y="176" width="18" height="28" rx="3" class="car-body"></rect>
+                  <rect x="175" y="180" width="10" height="8" rx="1.5" class="car-window"></rect>
+                  <line x1="180" y1="176" x2="180" y2="170" class="car-nose"></line>
+                </g>
+              </svg>
+            </div>
+
+            <div class="lab-panel">
+              <svg class="lab-svg" viewBox="0 0 360 360" role="img" aria-labelledby="lab-screen-title">
+                <title id="lab-screen-title">Screen path: the same displacement repeated, with y pointing down</title>
+                <defs>
+                  <pattern id="lab-grid-screen" width="30" height="30" patternUnits="userSpaceOnUse">
+                    <path d="M 30 0 L 0 0 0 30" fill="none" stroke="var(--rule)" stroke-width="1"></path>
+                  </pattern>
+                  <clipPath id="lab-screen-clip">
+                    <rect x="24" y="24" width="312" height="312" rx="4"></rect>
+                  </clipPath>
+                </defs>
+
+                <rect x="20" y="20" width="320" height="320" rx="4" class="screen-bg"></rect>
+                <rect x="24" y="24" width="312" height="312" fill="url(#lab-grid-screen)" opacity="0.55"></rect>
+                <text x="26" y="38" class="axis-label">screen</text>
+                <text x="26" y="52" class="axis-label" style="text-transform: none; letter-spacing: 0;">y points down</text>
+                <text x="334" y="352" class="axis-label" text-anchor="end">+x →</text>
+                <text x="26" y="352" class="axis-label">↓ +y</text>
+
+                <g clip-path="url(#lab-screen-clip)">
+                  <polyline data-lab-trail class="trail-line" points="180,190"></polyline>
+                  <circle cx="180" cy="190" r="3.2" class="start-dot"></circle>
+                  <g data-lab-screen-car class="car-ghost" transform="translate(180 190) rotate(0)">
+                    <rect x="-9" y="-14" width="18" height="28" rx="3" class="car-body"></rect>
+                    <rect x="-5" y="-10" width="10" height="8" rx="1.5" class="car-window"></rect>
+                    <line x1="0" y1="-14" x2="0" y2="-20" class="car-nose"></line>
+                  </g>
+                </g>
+              </svg>
+            </div>
+          </div>
+
+          <div class="lab-controls">
+            <label for="lab-angle">
+              <span>Heading θ <output data-lab-angle for="lab-angle">30°</output></span>
+              <input id="lab-angle" type="range" min="0" max="360" step="1" value="30" data-lab-angle-input>
+            </label>
+            <label for="lab-speed">
+              <span>Speed, px/frame <output data-lab-speed for="lab-speed">2.0</output></span>
+              <input id="lab-speed" type="range" min="0.5" max="3" step="0.1" value="2" data-lab-speed-input>
+            </label>
+            <div class="lab-buttons">
+              <button type="button" class="btn" data-lab-step="1">Step 1 frame</button>
+              <button type="button" class="btn" data-lab-step="5">Step 5 frames</button>
+              <button type="button" class="btn" data-lab-step="10">Step 10 frames</button>
+              <button type="button" class="btn btn-ghost" data-lab-reset>Reset path</button>
+            </div>
+          </div>
+
+          <div class="lab-readout">
+            <div><span>Δx</span><code data-lab-dx>−1.00</code></div>
+            <div><span>Δy</span><code data-lab-dy>−1.73</code></div>
+            <p class="formula" data-lab-formula></p>
+          </div>
+        </div>
+        <figcaption><strong>Figure 2.</strong> Left: the velocity triangle on the unit circle. Right: the same displacement repeated on a screen whose y axis points down; the path is drawn at 6× so each frame is visible. Changing θ or speed redraws a three-frame sample; Reset clears it. The path stops at the edge — press Reset to start over. A constant heading makes a straight line; steering would change θ every frame and bend it.</figcaption>
+      </figure>
+
+      <p>At 30°, the up step is <code>2 × cos 30° ≈ 1.73</code> and the sideways step is <code>2 × sin 30° = 1.00</code>. The car moves farther up than left. At 45°, the two are equal. At 60°, the sideways step wins. The triangle tells you which before you press a key.</p>
+    </section>
+
+    <section aria-labelledby="section-quiz">
+      <h2 id="section-quiz"><span class="sec-num">Section 06</span>Check your grip</h2>
+
+      <p>Answer from memory, not by scrolling. Each option gives immediate feedback, and the explanation appears after you choose.</p>
+
+      <div class="quiz" data-quiz>
+        <div class="quiz-head">
+          <div>
+            <h3>Five quick predictions</h3>
+            <p>All questions use speed = 2 px/frame.</p>
+          </div>
+          <button type="button" class="btn btn-ghost" data-quiz-reset>Reset answers</button>
+        </div>
+
+        <div class="quiz-question" data-question>
+          <p class="quiz-prompt"><span class="quiz-num">Q1</span> θ = 0°. What is (Δx, Δy)?</p>
+          <div class="quiz-options" data-options>
+            <button type="button" class="quiz-option" data-option data-correct="false">−2 and 0</button>
+            <button type="button" class="quiz-option" data-option data-correct="true">0 and −2</button>
+            <button type="button" class="quiz-option" data-option data-correct="false">0 and +2</button>
+            <button type="button" class="quiz-option" data-option data-correct="false">+2 and 0</button>
+          </div>
+          <p class="quiz-feedback" data-feedback aria-live="polite"></p>
+          <p class="quiz-explain" data-explanation hidden>At 0°, sin 0 = 0 and cos 0 = 1. So Δx = 0 and Δy = −2. The car moves straight up, which is negative y on the canvas.</p>
+        </div>
+
+        <div class="quiz-question" data-question>
+          <p class="quiz-prompt"><span class="quiz-num">Q2</span> θ = 90°. What is (Δx, Δy)?</p>
+          <div class="quiz-options" data-options>
+            <button type="button" class="quiz-option" data-option data-correct="true">−2 and 0</button>
+            <button type="button" class="quiz-option" data-option data-correct="false">0 and −2</button>
+            <button type="button" class="quiz-option" data-option data-correct="false">0 and −1</button>
+            <button type="button" class="quiz-option" data-option data-correct="false">−1 and 0</button>
+          </div>
+          <p class="quiz-feedback" data-feedback aria-live="polite"></p>
+          <p class="quiz-explain" data-explanation hidden>At 90°, sin 90° = 1 and cos 90° = 0. The full speed goes sideways: Δx = −2 and Δy = 0. The car moves left.</p>
+        </div>
+
+        <div class="quiz-question" data-question>
+          <p class="quiz-prompt"><span class="quiz-num">Q3</span> θ = 180°. What is (Δx, Δy)?</p>
+          <div class="quiz-options" data-options>
+            <button type="button" class="quiz-option" data-option data-correct="true">0 and +2</button>
+            <button type="button" class="quiz-option" data-option data-correct="false">+2 and 0</button>
+            <button type="button" class="quiz-option" data-option data-correct="false">0 and −2</button>
+            <button type="button" class="quiz-option" data-option data-correct="false">−2 and 0</button>
+          </div>
+          <p class="quiz-feedback" data-feedback aria-live="polite"></p>
+          <p class="quiz-explain" data-explanation hidden>At 180°, sin = 0 and cos = −1. The formula gives Δy = −2 × (−1) = +2. The car moves down, which is positive y.</p>
+        </div>
+
+        <div class="quiz-question" data-question>
+          <p class="quiz-prompt"><span class="quiz-num">Q4</span> θ = 45°. What is (Δx, Δy)?</p>
+          <div class="quiz-options" data-options>
+            <button type="button" class="quiz-option" data-option data-correct="true">−1.41, −1.41</button>
+            <button type="button" class="quiz-option" data-option data-correct="false">+1.41, +1.41</button>
+            <button type="button" class="quiz-option" data-option data-correct="false">−1.41, +1.41</button>
+            <button type="button" class="quiz-option" data-option data-correct="false">+1.41, −1.41</button>
+          </div>
+          <p class="quiz-feedback" data-feedback aria-live="polite"></p>
+          <p class="quiz-explain" data-explanation hidden>sin 45° = cos 45° ≈ 0.707, so each component is 2 × 0.707 ≈ 1.41. Both are negative: the car moves up and left.</p>
+        </div>
+
+        <div class="quiz-question" data-question>
+          <p class="quiz-prompt"><span class="quiz-num">Q5</span> Why does a left turn produce a negative Δx?</p>
+          <div class="quiz-options" data-options>
+            <button type="button" class="quiz-option" data-option data-correct="true">Because x grows rightward</button>
+            <button type="button" class="quiz-option" data-option data-correct="false">Because x grows leftward</button>
+            <button type="button" class="quiz-option" data-option data-correct="false">Because y grows rightward</button>
+            <button type="button" class="quiz-option" data-option data-correct="false">Because y grows leftward</button>
+          </div>
+          <p class="quiz-feedback" data-feedback aria-live="polite"></p>
+          <p class="quiz-explain" data-explanation hidden>Moving left means decreasing x, and canvas x increases to the right. The negative sign comes from the screen convention, not from sine.</p>
+        </div>
+      </div>
+    </section>
+
+    <section aria-labelledby="section-apply">
+      <h2 id="section-apply"><span class="sec-num">Section 07</span>Predict, then run it</h2>
+
+      <p>Now test the model against the real car. Open <code>index.html</code> in your browser. You can double-click the file; no server is needed. Open the developer console (in Chrome: <kbd>Cmd</kbd> + <kbd>Option</kbd> + <kbd>J</kbd> on macOS, or right-click the page and choose <em>Inspect</em>).</p>
+
+      <p>Before you press an arrow key, write down where the car will go for each of these headings. Then set the angle in the console and hold <kbd>ArrowUp</kbd> for a second.</p>
+
+      <ol>
+        <li><code>car.angle = 0;</code> — predict first, then run.</li>
+        <li><code>car.angle = Math.PI / 2;</code> — predict first, then run.</li>
+        <li><code>car.angle = Math.PI;</code> — predict first, then run.</li>
+        <li><code>car.angle = -Math.PI / 2;</code> — predict first, then run.</li>
+      </ol>
+
+      <p>If the car goes the wrong way, do not change the code yet. Check two things: the sign of y (up is negative) and the sign of the angle (positive is left). Those two conventions explain almost every "wrong direction" bug in this project.</p>
+
+      <aside class="callout callout--gold">
+        <p class="callout-title">Challenge</p>
+        <p>Set <code>car.angle = Math.PI / 6</code> (30°). Without running it, decide whether the car will travel farther horizontally or vertically after one second of acceleration. Then verify. The ratio is fixed by <code>tan 30° ≈ 0.577</code>, no matter how fast the car gets.</p>
+      </aside>
+
+      <p>One more observation: the current car has no momentum or steering physics. When you change <code>car.angle</code> while it is moving, the velocity direction changes instantly, so the path can turn sharply. That is why the car curves when you hold an arrow key: each frame adds <code>0.03</code> to the angle, and the next frame uses the new angle. A later lesson can add smoother steering.</p>
+
+      <aside class="callout callout--win">
+        <p class="callout-title">Teach it back</p>
+        <p>Close this page. On a blank sheet, draw the triangle, label the two legs, and write the two movement lines from memory. Then say out loud why both are negative. If you can do that without looking, the movement system is yours.</p>
+      </aside>
+    </section>
+
+    <section aria-labelledby="section-source">
+      <h2 id="section-source"><span class="sec-num">Section 08</span>Primary source</h2>
+
+      <p>Read this next. It covers the same triangle-to-vector conversion in a creative-coding context, then goes further into pointing an object in its direction of movement.</p>
+
+      <div class="source-card">
+        <div class="source-mark" aria-hidden="true">1</div>
+        <div>
+          <h3><a href="https://natureofcode.com/oscillation/" target="_blank" rel="noreferrer">The Nature of Code — Chapter 3: Oscillation</a></h3>
+          <p>Daniel Shiffman. Read the sections <em>Trigonometry Functions</em> and <em>Polar vs. Cartesian Coordinates</em>. The chapter moves from SOHCAHTOA to the unit circle and then to making a vehicle point where it moves. Exercise 3.4 is essentially this car, with arrow keys.</p>
+          <p class="source-meta">Primary source · free online · about 25 minutes for the two sections</p>
+        </div>
+      </div>
+
+      <div class="source-card">
+        <div class="source-mark" aria-hidden="true">2</div>
+        <div>
+          <h3><a href="https://betterexplained.com/articles/intuitive-trigonometry/" target="_blank" rel="noreferrer">How To Learn Trigonometry Intuitively</a></h3>
+          <p>Kalid Azad, Better Explained. If sine and cosine still feel like memorized ratios, read this. It reframes them as percentages of a hypotenuse — the same idea as the velocity triangle, without the canvas.</p>
+          <p class="source-meta">Companion · free online · about 20 minutes</p>
+        </div>
+      </div>
+
+      <p>When you finish, come back and explain the two lines to me in your own words. I will check the parts that are still fuzzy and pick the next lesson from there.</p>
+    </section>
+
+    <aside class="teacher">
+      <p class="eyebrow">Your teacher is here</p>
+      <p>Stuck on a sign, a radian, or why the car curves? Ask me in the chat. Bring the exact angle and speed you tried, and we will trace the triangle together.</p>
+    </aside>
+
+    <footer class="lesson-footer">
+      <nav class="footer-nav" aria-label="Lesson navigation">
+        <span>Reference: <a href="../reference/trig-for-car-movement.html">Trig for car movement</a> · <a href="../reference/trig-glossary.html">Glossary</a></span>
+        <span>Next: <a href="../reference/trig-for-car-movement.html#canvas-rotation">rotation signs &amp; reverse steering</a></span>
+      </nav>
+      <p>Lesson 01 · <a href="../MISSION.md">Mission: Trigonometry for a Self-Driving Car</a> · 16 November 2026</p>
+    </footer>
+  </article>
+
+  <script src="../assets/quiz.js"></script>
+  <script src="../assets/heading-lab.js"></script>
+</body>
+</html>

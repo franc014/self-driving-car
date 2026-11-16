@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Reference — Trigonometry glossary</title>
+  <meta name="description" content="Plain-language glossary of the trigonometry and coordinate terms used in the self-driving car project.">
+  <link rel="stylesheet" href="../assets/lesson.css">
+</head>
+<body>
+  <article class="reference">
+    <header class="ref-header">
+      <p class="kicker">Reference · Glossary</p>
+      <h1>Trigonometry glossary</h1>
+      <p class="ref-lede">The vocabulary used in this workspace, defined for this project rather than for a textbook. Terms are listed roughly from most basic to most applied.</p>
+    </header>
+
+    <aside class="callout callout--note">
+      <p class="callout-title">How to use this</p>
+      <p>When a lesson uses a word you cannot define in one sentence, come back here. The “in this project” line is the one that matters for reading <code>car.js</code>.</p>
+    </aside>
+
+    <dl class="glossary">
+      <dt id="angle">Angle</dt>
+      <dd>The amount of rotation between two directions. In this project, <code>car.angle</code> is measured in radians from straight up; a positive angle turns the car left. <a href="../lessons/0001-angle-to-motion.html#section-screen">See the sign decoder.</a></dd>
+
+      <dt id="radian">Radian</dt>
+      <dd>The angle whose arc length equals the circle's radius. A full turn is <code>2π</code> radians. JavaScript's <code>Math.sin</code> and <code>Math.cos</code> take radians, and the car's steering increment is <code>0.03</code> rad. <a href="../lessons/0001-angle-to-motion.html#section-unit-circle">See “Radians in one breath.”</a></dd>
+
+      <dt id="degree">Degree</dt>
+      <dd>A unit of angle equal to <code>1/360</code> of a full turn. <code>90° = π/2</code> radians. Degrees are convenient for humans; radians are what the math library wants. Convert with <code>degrees * Math.PI / 180</code>.</dd>
+
+      <dt id="sine">Sine (sin)</dt>
+      <dd>The ratio of the side opposite an angle to the hypotenuse. In the car's velocity triangle, sine is the <strong>sideways</strong> share of the speed: <code>left = speed · sin θ</code>. <a href="../reference/trig-for-car-movement.html#ref-values">See the values table.</a></dd>
+
+      <dt id="cosine">Cosine (cos)</dt>
+      <dd>The ratio of the side adjacent to an angle to the hypotenuse. In the car's triangle, cosine is the <strong>up</strong> share of the speed: <code>up = speed · cos θ</code>. <a href="../reference/trig-for-car-movement.html#ref-values">See the values table.</a></dd>
+
+      <dt id="hypotenuse">Hypotenuse</dt>
+      <dd>The longest side of a right triangle, opposite the right angle. Here it is the velocity vector: its length is the speed, and its direction is the heading. <a href="../lessons/0001-angle-to-motion.html#section-triangle">See the velocity triangle.</a></dd>
+
+      <dt id="opposite">Opposite</dt>
+      <dd>The side across from the angle you are measuring. Relative to the car's angle θ, the opposite side is the horizontal leg — the sideways movement. Sine uses this side.</dd>
+
+      <dt id="adjacent">Adjacent</dt>
+      <dd>The side that touches the angle you are measuring, other than the hypotenuse. Relative to the car's angle θ, the adjacent side is the vertical leg — the up movement. Cosine uses this side.</dd>
+
+      <dt id="unit-circle">Unit circle</dt>
+      <dd>A circle of radius 1 centered on the origin. Every direction corresponds to one point on it. In this project, speed 1 gives the point <code>(−sin θ, −cos θ)</code>, because the circle starts at up and the screen's y axis points down. <a href="../lessons/0001-angle-to-motion.html#section-unit-circle">See the unit-circle section.</a></dd>
+
+      <dt id="vector">Vector</dt>
+      <dd>A quantity with both magnitude and direction. The car's velocity is a vector; its position change <code>(Δx, Δy)</code> is a vector. A bare number like speed is a scalar.</dd>
+
+      <dt id="component">Component</dt>
+      <dd>The part of a vector along one axis. The car's movement has an x component <code>Δx</code> and a y component <code>Δy</code>. Sine and cosine are the tools that produce them. <a href="../lessons/0001-angle-to-motion.html#section-triangle">See the decomposition.</a></dd>
+
+      <dt id="magnitude">Magnitude</dt>
+      <dd>The length of a vector, ignoring its direction. The magnitude of the car's velocity is its speed. If you know <code>Δx</code> and <code>Δy</code>, the distance moved is <code>Math.hypot(Δx, Δy)</code>.</dd>
+
+      <dt id="heading">Heading</dt>
+      <dd>The direction the car's nose points. In this project, heading is stored as <code>this.angle</code>; the movement vector is always along the heading. <a href="../reference/trig-for-car-movement.html#point-at-target">See how to compute a heading from a target.</a></dd>
+
+      <dt id="coordinate-system">Coordinate system</dt>
+      <dd>The axes and sign conventions used to describe positions. On a canvas, the origin is top-left, x increases right, and y increases <strong>down</strong>. This is why the movement code subtracts both components. <a href="../reference/trig-for-car-movement.html#ref-conventions">See the sign conventions.</a></dd>
+
+      <dt id="counterclockwise">Counterclockwise</dt>
+      <dd>Opposite to the direction clock hands move. On screen, a positive car angle turns counterclockwise — left. The left arrow adds to the angle.</dd>
+
+      <dt id="clockwise">Clockwise</dt>
+      <dd>In the direction clock hands move. Canvas's positive rotation is clockwise because its y axis points down. The car is drawn with <code>rotate(−θ)</code> to convert its counterclockwise angle into a canvas rotation. <a href="../reference/trig-for-car-movement.html#canvas-rotation">See the draw pattern.</a></dd>
+
+      <dt id="periodicity">Periodicity</dt>
+      <dd>The property of sine and cosine that repeats every <code>2π</code>. The car's angle can grow past a full turn or go negative; the direction simply repeats, so the formulas keep working without normalization.</dd>
+
+      <dt id="atan2">atan2</dt>
+      <dd>An inverse tangent that takes the sine and cosine separately, so it can distinguish all four quadrants. Use <code>Math.atan2(-dx, -dy)</code> to turn a screen-space direction back into the car's angle. <a href="../reference/trig-for-car-movement.html#point-at-target">See the inverse formula.</a></dd>
+
+      <dt id="speed">Speed</dt>
+      <dd>How fast the car moves along its heading, in pixels per frame. In this code, speed is signed: positive is forward, negative is reverse. It is not the same as velocity, which also includes direction.</dd>
+
+      <dt id="velocity">Velocity</dt>
+      <dd>Speed together with a direction. The car stores speed and angle separately, then combines them into a velocity vector with sine and cosine. <a href="../lessons/0001-angle-to-motion.html#section-triangle">See the velocity triangle.</a></dd>
+
+      <dt id="displacement">Displacement</dt>
+      <dd>The change in position over one frame: <code>(Δx, Δy)</code>. The car adds a displacement to its position every frame; a path is the sum of many small displacements.</dd>
+    </dl>
+
+    <footer class="lesson-footer">
+      <nav class="footer-nav" aria-label="Reference navigation">
+        <span><a href="../lessons/0001-angle-to-motion.html">← Lesson 01: One angle, two directions</a></span>
+        <span><a href="trig-for-car-movement.html">Cheat sheet →</a></span>
+      </nav>
+      <p>Reference 02 · Trigonometry for a Self-Driving Car · 16 November 2026</p>
+    </footer>
+  </article>
+</body>
+</html>

@@ -1,0 +1,658 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lesson 02 — The car that draws backwards</title>
+  <meta name="description" content="Why canvas rotation runs clockwise, why draw() calls rotate(-angle), and why reverse steering needs a flip. The three minus signs, separated by system.">
+  <link rel="stylesheet" href="../assets/lesson.css">
+</head>
+<body>
+  <article class="lesson">
+    <header class="lesson-header">
+      <p class="kicker">Lesson 02 · Drawing &amp; reversing</p>
+      <h1>The car that draws backwards</h1>
+      <p class="dek">Two minus signs remain. One turns the drawing the right way; the other makes reverse steering feel like a car. Neither is a trigonometry trick — each belongs to a different system.</p>
+
+      <dl class="meta">
+        <div>
+          <dt>Time</dt>
+          <dd>15–18 minutes</dd>
+        </div>
+        <div>
+          <dt>Prerequisite</dt>
+          <dd>Lesson 01</dd>
+        </div>
+        <div>
+          <dt>Code under study</dt>
+          <dd><code>car.js</code>, lines 46–65</dd>
+        </div>
+        <div>
+          <dt>Mission</dt>
+          <dd><a href="../MISSION.md">derive, don't copy</a></dd>
+        </div>
+      </dl>
+    </header>
+
+    <aside class="mission">
+      <p class="eyebrow">Why this matters</p>
+      <p><strong>The car already knows how to move.</strong> Now make the drawing agree with the movement, and make reverse steering do what a driver expects. By the end you will name all three minus signs in this project and say which system each one compensates for.</p>
+    </aside>
+
+    <p class="lede">The movement formula uses the nose direction. The canvas draws in a different coordinate system. Reverse adds a third twist. Separate the three, and the code stops looking arbitrary.</p>
+
+    <section aria-labelledby="section-local">
+      <h2 id="section-local"><span class="sec-num">Section 01</span>The car is drawn at its own origin</h2>
+
+      <p>Movement updates a point: <code>this.x</code>, <code>this.y</code>. Drawing does something else: it puts a local coordinate system at that point, rotates it, and draws a rectangle around the origin.</p>
+
+      <figure class="code-figure">
+        <pre><code><span class="comment">// car.js — draw()</span>
+ctx.save();
+ctx.translate(this.x, this.y);
+<span class="hl">ctx.rotate(-this.angle);</span>
+ctx.beginPath();
+ctx.rect(
+    -this.width / 2,
+    -this.height / 2,
+    this.width,
+    this.height
+);
+ctx.fill();
+ctx.restore();</code></pre>
+        <figcaption><strong>Listing 1.</strong> The rectangle is centered on the local origin. Its nose is the top edge, along <code>−y</code>. <code>save()</code> and <code>restore()</code> keep the translation and rotation from leaking into the next drawing.</figcaption>
+      </figure>
+
+      <p>The rectangle is <code>30 × 50</code>, drawn from <code>(-15, -25)</code> to <code>(15, 25)</code>. The nose is at <code>(0, −25)</code>, the rear at <code>(0, +25)</code>. At angle 0, the nose points up and no rotation is needed. That matches Lesson 01: at angle 0, the car moves up.</p>
+
+      <figure>
+        <svg class="diagram" viewBox="0 0 520 300" role="img" aria-labelledby="local-title local-desc">
+          <title id="local-title">The car's local coordinate system</title>
+          <desc id="local-desc">A car shape centered on a local origin. The nose points along negative y, the rear along positive y. Positive x points right.</desc>
+          <defs>
+            <marker id="local-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--ink)"></path>
+            </marker>
+          </defs>
+
+          <rect width="520" height="300" fill="var(--paper-raised)"></rect>
+
+          <g aria-hidden="true">
+            <line x1="260" y1="96" x2="260" y2="62" class="axis-line" marker-end="url(#local-arrow)"></line>
+            <line x1="260" y1="204" x2="260" y2="238" class="axis-line" marker-end="url(#local-arrow)"></line>
+            <line x1="226" y1="150" x2="192" y2="150" class="axis-line" marker-end="url(#local-arrow)"></line>
+            <line x1="294" y1="150" x2="328" y2="150" class="axis-line" marker-end="url(#local-arrow)"></line>
+
+            <text x="260" y="52" class="comp-label comp-label--y" text-anchor="middle">−y · nose</text>
+            <text x="260" y="254" class="diagram-label" text-anchor="middle">+y · rear</text>
+            <text x="184" y="154" class="diagram-label" text-anchor="end">−x · left</text>
+            <text x="336" y="154" class="diagram-label">+x · right</text>
+          </g>
+
+          <rect x="232" y="110" width="56" height="80" rx="7" class="car-body"></rect>
+          <rect x="242" y="124" width="36" height="22" rx="3" class="car-window"></rect>
+          <line x1="260" y1="110" x2="260" y2="96" class="car-nose"></line>
+          <circle cx="260" cy="150" r="3.5" class="origin-dot"></circle>
+          <text x="260" y="286" class="diagram-label" text-anchor="middle">local origin (0, 0)</text>
+        </svg>
+        <figcaption><strong>Figure 1.</strong> The car's local frame. The rectangle is symmetric around <code>(0, 0)</code>; only the nose line breaks the symmetry. This is why <code>rotate</code> can spin the car around its center without moving it.</figcaption>
+      </figure>
+
+      <aside class="callout callout--note">
+        <p class="callout-title">Drawing never moves the car</p>
+        <p><code>update()</code> changes <code>this.x</code> and <code>this.y</code>. <code>draw()</code> only translates and rotates the shape around that point. If the car looks like it is sliding sideways, the position is fine; the drawing and the heading disagree. That is a rotation-sign bug, not a movement bug.</p>
+      </aside>
+    </section>
+
+    <section aria-labelledby="section-clockwise">
+      <h2 id="section-clockwise"><span class="sec-num">Section 02</span>Canvas rotation is clockwise</h2>
+
+      <p>On a math plot, positive rotation runs counterclockwise. On a canvas, it runs clockwise, because the y axis points down. The rotation matrix is the same in both worlds; only the meaning of the result changes.</p>
+
+      <div class="formula-block">
+        <span class="formula-label">Canvas rotate(a)</span>
+        x′ = x cos a − y sin a<br>
+        y′ = x sin a + y cos a
+      </div>
+
+      <p>Feed the car's local nose <code>(0, −1)</code> into that matrix:</p>
+
+      <div class="formula-block">
+        <span class="formula-label">Where the nose points</span>
+        rotate(+a): &nbsp; ( sin a, −cos a ) &nbsp; <span style="color: var(--muted);">// up-right for a = +60°</span><br>
+        rotate(−a): &nbsp; (−sin a, −cos a ) &nbsp; <span style="color: var(--muted);">// up-left for a = +60°</span><br>
+        motion: &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; (−sin a, −cos a ) &nbsp; <span style="color: var(--muted);">// the Lesson 01 heading</span>
+      </div>
+
+      <p>The comparison is the whole lesson. The movement vector is <code>(−sin θ, −cos θ)</code>. The drawing matches it only when the rotation is negated. <code>ctx.rotate(-this.angle)</code> is therefore not a quirk: it is the exact bridge between the car's angle convention and the canvas's clockwise rotation.</p>
+
+      <aside class="callout callout--gold">
+        <p class="callout-title">Same angle, two coordinate systems</p>
+        <p>The car measures θ from the nose, with positive turning left. The canvas measures rotation from the local x axis, with positive turning clockwise. The minus sign is the conversion between those two conventions, just as the movement formula's minus signs are the conversion to screen axes.</p>
+      </aside>
+    </section>
+
+    <section aria-labelledby="section-rotation-lab">
+      <h2 id="section-rotation-lab"><span class="sec-num">Section 03</span>Rotation lab: one angle, two drawings</h2>
+
+      <p>Predict before you drag: at θ = +60°, which way does the correct car point? Which way does the wrong one point? Then move the slider and watch the motion arrow.</p>
+
+      <figure class="figure-wide">
+        <div class="lab" data-rotation-lab>
+          <div class="lab-head">
+            <div>
+              <p class="eyebrow">Interactive · Rotation lab</p>
+              <h3>Only one sign keeps the nose on the arrow</h3>
+            </div>
+          </div>
+
+          <div class="lab-grid">
+            <div class="lab-panel">
+              <svg class="lab-svg" viewBox="0 0 320 320" role="img" aria-labelledby="rot-correct-title">
+                <title id="rot-correct-title">Car drawn with rotate negative angle; its nose follows the motion arrow</title>
+                <defs>
+                  <pattern id="rot-grid-correct" width="32" height="32" patternUnits="userSpaceOnUse">
+                    <path d="M 32 0 L 0 0 0 32" fill="none" stroke="var(--rule)" stroke-width="1"></path>
+                  </pattern>
+                  <marker id="rot-arrow-correct" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+                    <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--ink)"></path>
+                  </marker>
+                </defs>
+                <rect x="8" y="8" width="304" height="304" fill="url(#rot-grid-correct)" opacity="0.5"></rect>
+                <text x="18" y="28" class="axis-label">rotate(−θ)</text>
+                <text x="18" y="42" class="axis-label" style="text-transform: none; letter-spacing: 0;">nose should match the arrow</text>
+
+                <line data-rot-heading-correct x1="160" y1="170" x2="160" y2="75" class="heading-line" marker-end="url(#rot-arrow-correct)"></line>
+                <g data-rot-car-correct transform="rotate(-60 160 170)">
+                  <rect x="148" y="152" width="24" height="36" rx="4" class="car-body"></rect>
+                  <rect x="153" y="158" width="14" height="10" rx="2" class="car-window"></rect>
+                  <line x1="160" y1="152" x2="160" y2="144" class="car-nose"></line>
+                </g>
+                <circle cx="160" cy="170" r="3" class="origin-dot"></circle>
+                <text x="160" y="298" class="diagram-label" text-anchor="middle">ink arrow = direction of motion</text>
+              </svg>
+            </div>
+
+            <div class="lab-panel">
+              <svg class="lab-svg" viewBox="0 0 320 320" role="img" aria-labelledby="rot-wrong-title">
+                <title id="rot-wrong-title">Car drawn with rotate positive angle; its nose is mirrored away from the motion arrow</title>
+                <defs>
+                  <marker id="rot-arrow-wrong" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+                    <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--ink)"></path>
+                  </marker>
+                </defs>
+                <rect x="8" y="8" width="304" height="304" fill="url(#rot-grid-correct)" opacity="0.5"></rect>
+                <text x="18" y="28" class="axis-label">rotate(+θ)</text>
+                <text x="18" y="42" class="axis-label" style="text-transform: none; letter-spacing: 0;">nose is mirrored</text>
+
+                <line data-rot-heading-wrong x1="160" y1="170" x2="160" y2="75" class="heading-line" marker-end="url(#rot-arrow-wrong)"></line>
+                <g data-rot-car-wrong class="car-wrong" transform="rotate(60 160 170)">
+                  <rect x="148" y="152" width="24" height="36" rx="4" class="car-body"></rect>
+                  <rect x="153" y="158" width="14" height="10" rx="2" class="car-window"></rect>
+                  <line x1="160" y1="152" x2="160" y2="144" class="car-nose"></line>
+                </g>
+                <circle cx="160" cy="170" r="3" class="origin-dot"></circle>
+                <text x="160" y="298" class="diagram-label" text-anchor="middle">ink arrow = direction of motion</text>
+              </svg>
+            </div>
+          </div>
+
+          <div class="lab-controls">
+            <label for="rot-angle">
+              <span>Heading θ <output data-rot-angle-out for="rot-angle">60°</output></span>
+              <input id="rot-angle" type="range" min="-180" max="180" step="5" value="60" data-rot-angle>
+            </label>
+            <div class="lab-buttons">
+              <button type="button" class="btn" data-rot-preset="-90">−90°</button>
+              <button type="button" class="btn" data-rot-preset="0">0°</button>
+              <button type="button" class="btn" data-rot-preset="60">60°</button>
+              <button type="button" class="btn" data-rot-preset="90">90°</button>
+              <button type="button" class="btn" data-rot-preset="180">180°</button>
+            </div>
+          </div>
+
+          <div class="lab-readout">
+            <div><span>rotate(−θ) nose</span><code data-rot-nose-correct>(−0.87, −0.50)</code></div>
+            <div><span>rotate(+θ) nose</span><code data-rot-nose-wrong>(+0.87, −0.50)</code></div>
+            <div><span>Motion vector</span><code data-rot-motion>(−0.87, −0.50)</code></div>
+            <div><span>Verdict</span><code data-rot-status class="is-good">matches</code></div>
+            <p class="formula" data-rot-formula></p>
+          </div>
+        </div>
+        <figcaption><strong>Figure 2.</strong> The left car uses <code>rotate(−θ)</code>; the right uses <code>rotate(+θ)</code>. The motion arrow is the same in both panels because the movement formula does not change. At 0° and 180° the two rotations coincide; at every other angle, the wrong sign mirrors the car across the vertical axis.</figcaption>
+      </figure>
+
+      <p>At 60°, the correct nose is <code>(−0.87, −0.50)</code>: up and to the left, exactly the motion vector. The wrong nose is <code>(+0.87, −0.50)</code>: up and to the right. The car would be drawn on the wrong side of its own path.</p>
+    </section>
+
+    <section aria-labelledby="section-reverse-velocity">
+      <h2 id="section-reverse-velocity"><span class="sec-num">Section 04</span>Reverse flips the velocity, not the formula</h2>
+
+      <p>There is no separate reverse branch in <code>#move()</code>. The sign of <code>this.speed</code> does all the work. At angle 0, forward speed moves the car up; negative speed moves it down, even though the nose still points up.</p>
+
+      <div class="table-wrap">
+        <table>
+          <caption>The same formula, two signs of speed</caption>
+          <thead>
+            <tr>
+              <th scope="col">θ</th>
+              <th scope="col" class="num">speed</th>
+              <th scope="col" class="num">Δx</th>
+              <th scope="col" class="num">Δy</th>
+              <th scope="col">Motion</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>0°</td>
+              <td class="num">+2</td>
+              <td class="num">0</td>
+              <td class="num">−2</td>
+              <td>Up, along the nose</td>
+            </tr>
+            <tr>
+              <td>0°</td>
+              <td class="num">−2</td>
+              <td class="num">0</td>
+              <td class="num">+2</td>
+              <td>Down, against the nose</td>
+            </tr>
+            <tr>
+              <td>90°</td>
+              <td class="num">+2</td>
+              <td class="num">−2</td>
+              <td class="num">0</td>
+              <td>Left, along the nose</td>
+            </tr>
+            <tr>
+              <td>90°</td>
+              <td class="num">−2</td>
+              <td class="num">+2</td>
+              <td class="num">0</td>
+              <td>Right, against the nose</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p>A negative speed multiplies both components by <code>−1</code>. Geometrically, that reflects the velocity vector through the car's center: the arrow of motion points exactly opposite the nose. The car is still facing forward; it is simply traveling backward.</p>
+
+      <aside class="callout callout--note">
+        <p class="callout-title">Reverse is a vector, not a mode</p>
+        <p>The code does not ask “am I in reverse?” before moving. It computes <code>(−sin θ, −cos θ) · speed</code>. A negative speed flips the vector. That is why reverse can reuse the entire movement system without a second formula.</p>
+      </aside>
+    </section>
+
+    <section aria-labelledby="section-flip">
+      <h2 id="section-flip"><span class="sec-num">Section 05</span>Why steering flips in reverse</h2>
+
+      <p>Now the second minus sign, the one in the steering block:</p>
+
+      <figure class="code-figure">
+        <pre><code><span class="comment">// car.js — steering inside #move()</span>
+if (this.speed != 0) {
+    <span class="hl">const flip = this.speed &gt; 0 ? 1 : -1;</span>
+    if (this.controls.left) {
+        this.angle += 0.03 * flip;
+    }
+    if (this.controls.right) {
+        this.angle -= 0.03 * flip;
+    }
+}</code></pre>
+        <figcaption><strong>Listing 2.</strong> The steering block runs only while the car is moving. When the speed is negative, <code>flip</code> is <code>−1</code>, so the nose turns the opposite way from the key.</figcaption>
+      </figure>
+
+      <p>When you drive forward and press left, the nose turns left and the car curves left. That is the obvious case. In reverse, the car travels opposite its nose, so the same nose rotation sends the rear the other way. The driver is watching the rear, so the input would feel inverted.</p>
+
+      <p><code>flip</code> fixes that. In reverse, pressing left turns the nose <em>right</em>, which sends the rear <em>left</em> — the direction the driver intended. The nose and the rear turn in opposite directions; the car's motion follows the rear.</p>
+
+      <div class="table-wrap">
+        <table>
+          <caption>One key, three different outcomes</caption>
+          <thead>
+            <tr>
+              <th scope="col">Case</th>
+              <th scope="col" class="num">Δ angle</th>
+              <th scope="col">Nose turns</th>
+              <th scope="col">Motion</th>
+              <th scope="col">Rear goes</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Forward + left</td>
+              <td class="num">+0.03</td>
+              <td>Left</td>
+              <td>Forward-left</td>
+              <td>Left</td>
+            </tr>
+            <tr>
+              <td>Reverse + left, no flip</td>
+              <td class="num">+0.03</td>
+              <td>Left</td>
+              <td>Backward-right</td>
+              <td>Right</td>
+            </tr>
+            <tr>
+              <td>Reverse + left, with flip</td>
+              <td class="num">−0.03</td>
+              <td>Right</td>
+              <td>Backward-left</td>
+              <td>Left</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p>You can derive the first frame from Lesson 01. At θ = 0, one steering step changes the angle by <code>ε</code>. The sideways velocity is <code>−sin ε · speed</code>:</p>
+
+      <div class="formula-block">
+        <span class="formula-label">First-frame sideways motion</span>
+        forward, left: &nbsp;&nbsp;&nbsp;&nbsp; θ = +ε, speed = +v → Δx = −sin ε · v &lt; 0 &nbsp; (left)<br>
+        reverse, no flip: &nbsp; θ = +ε, speed = −v → Δx = +sin ε · v &gt; 0 &nbsp; (right)<br>
+        reverse, with flip: θ = −ε, speed = −v → Δx = −sin ε · v &lt; 0 &nbsp; (left)
+      </div>
+
+      <p>The steering input changes the heading. The speed sign changes the direction of travel. The <code>flip</code> changes the heading in the opposite direction so that the product — the rear's motion — follows the key.</p>
+
+      <aside class="callout callout--gold">
+        <p class="callout-title">Not a trigonometry fact</p>
+        <p><code>flip</code> is a control convention. It models a front-wheel-steered car backing up. The movement formula is already correct without it; removing <code>flip</code> does not break the geometry. It breaks the <em>feel</em>: the rear would swing against the key in reverse.</p>
+      </aside>
+    </section>
+
+    <section aria-labelledby="section-reverse-lab">
+      <h2 id="section-reverse-lab"><span class="sec-num">Section 06</span>Reverse lab: watch the rear</h2>
+
+      <p>Set speed to Reverse and steering to Left. Predict where the nose points and where the motion arrow points. Then step the car and compare. Toggle the flip off and repeat.</p>
+
+      <figure class="figure-wide">
+        <div class="lab" data-reverse-lab>
+          <div class="lab-head">
+            <div>
+              <p class="eyebrow">Interactive · Reverse lab</p>
+              <h3>The rear leads when the car backs up</h3>
+            </div>
+          </div>
+
+          <div class="lab-grid">
+            <div class="lab-panel">
+              <svg class="lab-svg" viewBox="0 0 360 360" role="img" aria-labelledby="rev-scene-title">
+                <title id="rev-scene-title">Top-down car with a trail and a green motion arrow; the red dot marks the rear</title>
+                <defs>
+                  <pattern id="rev-grid" width="30" height="30" patternUnits="userSpaceOnUse">
+                    <path d="M 30 0 L 0 0 0 30" fill="none" stroke="var(--rule)" stroke-width="1"></path>
+                  </pattern>
+                  <marker id="rev-arrow-motion" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+                    <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--green)"></path>
+                  </marker>
+                </defs>
+                <rect x="18" y="18" width="324" height="324" fill="url(#rev-grid)" opacity="0.5"></rect>
+                <text x="24" y="36" class="axis-label">top-down</text>
+                <text x="24" y="50" class="axis-label" style="text-transform: none; letter-spacing: 0;">trail = center path</text>
+
+                <polyline data-rev-trail class="trail-line" points="180,180"></polyline>
+                <line data-rev-motion class="motion-line" x1="180" y1="180" x2="180" y2="138" marker-end="url(#rev-arrow-motion)"></line>
+                <g data-rev-car transform="translate(180 180) rotate(0)">
+                  <rect x="-12" y="-18" width="24" height="36" rx="4" class="car-body"></rect>
+                  <rect x="-7" y="-12" width="14" height="10" rx="2" class="car-window"></rect>
+                  <line x1="0" y1="-18" x2="0" y2="-25" class="car-nose"></line>
+                  <circle cx="0" cy="17" r="2.6" class="rear-dot"></circle>
+                </g>
+                <circle cx="180" cy="180" r="3" class="start-dot"></circle>
+                <text x="180" y="348" class="diagram-label" text-anchor="middle">green arrow = motion · red dot = rear</text>
+              </svg>
+            </div>
+
+            <div class="lab-panel lab-panel--ledger">
+              <div class="lab-readout lab-readout--stack">
+                <div><span>Speed</span><code data-rev-speed-out>+2 forward</code></div>
+                <div><span>Steering</span><code data-rev-steer-out>straight</code></div>
+                <div><span>Steering ×</span><code data-rev-flip-out>+1</code></div>
+                <div><span>Δ angle / frame</span><code data-rev-delta-out>0.00 rad</code></div>
+                <div><span>Nose</span><code data-rev-nose-out>up</code></div>
+                <div><span>Motion</span><code data-rev-motion-out>up</code></div>
+              </div>
+              <p class="lab-note" data-rev-note>Forward, straight: the nose and the motion agree.</p>
+            </div>
+          </div>
+
+          <div class="lab-controls">
+            <div class="lab-group">
+              <span class="lab-group-label">Speed</span>
+              <div class="lab-buttons">
+                <button type="button" class="btn" data-rev-speed="2" aria-pressed="true">Forward</button>
+                <button type="button" class="btn" data-rev-speed="-2" aria-pressed="false">Reverse</button>
+              </div>
+            </div>
+            <div class="lab-group">
+              <span class="lab-group-label">Steering</span>
+              <div class="lab-buttons">
+                <button type="button" class="btn" data-rev-steer="1" aria-pressed="false">Left</button>
+                <button type="button" class="btn" data-rev-steer="0" aria-pressed="true">Straight</button>
+                <button type="button" class="btn" data-rev-steer="-1" aria-pressed="false">Right</button>
+              </div>
+            </div>
+            <label class="lab-check">
+              <input type="checkbox" data-rev-flip checked>
+              <span>Apply the reverse flip</span>
+            </label>
+            <div class="lab-buttons">
+              <button type="button" class="btn" data-rev-step="10">Step 10 frames</button>
+              <button type="button" class="btn" data-rev-step="30">Step 30 frames</button>
+              <button type="button" class="btn btn-ghost" data-rev-reset>Reset path</button>
+            </div>
+          </div>
+        </div>
+        <figcaption><strong>Figure 3.</strong> The lab applies <code>0.03</code> rad per frame while the car moves at a constant ±2 px/frame. It ignores acceleration and friction so the sign effect is isolated. The trail is the center's path; the red dot is the rear. The green arrow always points along the velocity, so in reverse it points away from the nose.</figcaption>
+      </figure>
+
+      <p>With the flip on, pressing left in reverse sends the motion arrow left while the nose turns right. With the flip off, the nose turns left while the motion arrow goes right. The car is not steering backward; the <em>rear</em> is leading.</p>
+    </section>
+
+    <section aria-labelledby="section-three-minus">
+      <h2 id="section-three-minus"><span class="sec-num">Section 07</span>Three minus signs, three jobs</h2>
+
+      <p>This project has three minus signs that look similar and mean completely different things. Naming the system each one belongs to is the skill.</p>
+
+      <div class="table-wrap">
+        <table>
+          <caption>Where each minus lives and what it compensates for</caption>
+          <thead>
+            <tr>
+              <th scope="col">Minus</th>
+              <th scope="col">Where</th>
+              <th scope="col">Compensates for</th>
+              <th scope="col">Remove it and…</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>x -=</code><br><code>y -=</code></td>
+              <td>Movement</td>
+              <td>Screen axes: left is <code>−x</code>, up is <code>−y</code></td>
+              <td>The car moves right and up when it should move left and down.</td>
+            </tr>
+            <tr>
+              <td><code>rotate(-θ)</code></td>
+              <td>Drawing</td>
+              <td>Canvas positive rotation is clockwise</td>
+              <td>The car is drawn mirrored across its direction of travel.</td>
+            </tr>
+            <tr>
+              <td><code>flip = -1</code></td>
+              <td>Steering</td>
+              <td>Reverse motion leads with the rear</td>
+              <td>The rear swings against the key when reversing.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <aside class="callout callout--win">
+        <p class="callout-title">The one-sentence model</p>
+        <p>Movement converts the heading to screen axes; drawing converts the heading to canvas rotation; steering converts the key to the rear's direction of travel. Three conversions, three minus signs.</p>
+      </aside>
+
+      <p>The next time a car points one way and moves another, do not change all three signs. Ask which system is disagreeing: the position, the drawing, or the steering.</p>
+    </section>
+
+    <section aria-labelledby="section-quiz">
+      <h2 id="section-quiz"><span class="sec-num">Section 08</span>Check your grip</h2>
+
+      <p>Answer from memory. The feedback appears immediately; the explanation appears after you choose.</p>
+
+      <div class="quiz" data-quiz>
+        <div class="quiz-head">
+          <div>
+            <h3>Five quick sign checks</h3>
+            <p>No calculator needed.</p>
+          </div>
+          <button type="button" class="btn btn-ghost" data-quiz-reset>Reset answers</button>
+        </div>
+
+        <div class="quiz-question" data-question>
+          <p class="quiz-prompt"><span class="quiz-num">Q1</span> Why does <code>draw()</code> call <code>ctx.rotate(-this.angle)</code>?</p>
+          <div class="quiz-options" data-options>
+            <button type="button" class="quiz-option" data-option data-correct="true">Canvas positive rotation turns clockwise</button>
+            <button type="button" class="quiz-option" data-option data-correct="false">Canvas positive rotation turns counterclockwise</button>
+            <button type="button" class="quiz-option" data-option data-correct="false">The car's angle is stored in degrees</button>
+            <button type="button" class="quiz-option" data-option data-correct="false">The car shape points along positive y</button>
+          </div>
+          <p class="quiz-feedback" data-feedback aria-live="polite"></p>
+          <p class="quiz-explain" data-explanation hidden>Canvas y points down, so positive rotation looks clockwise. The car's positive angle turns counterclockwise, so the drawing negates it to agree with the movement.</p>
+        </div>
+
+        <div class="quiz-question" data-question>
+          <p class="quiz-prompt"><span class="quiz-num">Q2</span> At angle 0 and speed −2, the car moves…</p>
+          <div class="quiz-options" data-options>
+            <button type="button" class="quiz-option" data-option data-correct="true">Straight down, against its nose</button>
+            <button type="button" class="quiz-option" data-option data-correct="false">Straight up, along its nose</button>
+            <button type="button" class="quiz-option" data-option data-correct="false">Left, curving toward the bottom</button>
+            <button type="button" class="quiz-option" data-option data-correct="false">Right, curving toward the top</button>
+          </div>
+          <p class="quiz-feedback" data-feedback aria-live="polite"></p>
+          <p class="quiz-explain" data-explanation hidden>At 0°, Δx = 0 and Δy = +2. The nose still points up, but the negative speed reverses the velocity, so the car moves down.</p>
+        </div>
+
+        <div class="quiz-question" data-question>
+          <p class="quiz-prompt"><span class="quiz-num">Q3</span> In reverse, pressing left with <code>flip</code> sends the rear…</p>
+          <div class="quiz-options" data-options>
+            <button type="button" class="quiz-option" data-option data-correct="true">Left, the way you pressed</button>
+            <button type="button" class="quiz-option" data-option data-correct="false">Right, against the way pressed</button>
+            <button type="button" class="quiz-option" data-option data-correct="false">Straight, ignoring the steering press</button>
+            <button type="button" class="quiz-option" data-option data-correct="false">Right, after the car stops</button>
+          </div>
+          <p class="quiz-feedback" data-feedback aria-live="polite"></p>
+          <p class="quiz-explain" data-explanation hidden><code>flip</code> turns the nose right in reverse. The car travels opposite its nose, so the rear goes left — the direction of the key.</p>
+        </div>
+
+        <div class="quiz-question" data-question>
+          <p class="quiz-prompt"><span class="quiz-num">Q4</span> If you remove <code>flip</code> and reverse while pressing left, the rear goes…</p>
+          <div class="quiz-options" data-options>
+            <button type="button" class="quiz-option" data-option data-correct="true">Right, against the steering key</button>
+            <button type="button" class="quiz-option" data-option data-correct="false">Left, along the steering key</button>
+            <button type="button" class="quiz-option" data-option data-correct="false">Straight, ignoring the steering key</button>
+            <button type="button" class="quiz-option" data-option data-correct="false">Right, but only after stopping</button>
+          </div>
+          <p class="quiz-feedback" data-feedback aria-live="polite"></p>
+          <p class="quiz-explain" data-explanation hidden>Without the flip, the nose turns left. The car travels opposite its nose, so the rear swings right. The geometry is fine; the steering feel is inverted.</p>
+        </div>
+
+        <div class="quiz-question" data-question>
+          <p class="quiz-prompt"><span class="quiz-num">Q5</span> Which minus sign compensates for canvas rotation?</p>
+          <div class="quiz-options" data-options>
+            <button type="button" class="quiz-option" data-option data-correct="true"><code>rotate(-angle)</code> in the drawing code</button>
+            <button type="button" class="quiz-option" data-option data-correct="false"><code>flip = -1</code> in the steering code</button>
+            <button type="button" class="quiz-option" data-option data-correct="false"><code>x -=</code> in the movement formula</button>
+            <button type="button" class="quiz-option" data-option data-correct="false"><code>y -=</code> in the movement formula</button>
+          </div>
+          <p class="quiz-feedback" data-feedback aria-live="polite"></p>
+          <p class="quiz-explain" data-explanation hidden>Canvas positive rotation is clockwise; the car's positive angle is counterclockwise. The drawing negates the angle. The movement signs handle the screen axes; the flip handles reverse motion.</p>
+        </div>
+      </div>
+    </section>
+
+    <section aria-labelledby="section-apply">
+      <h2 id="section-apply"><span class="sec-num">Section 09</span>Predict, then drive</h2>
+
+      <p>Open <code>index.html</code> and use the arrow keys. Predict each result before you press the key.</p>
+
+      <ol>
+        <li>Hold <kbd>ArrowUp</kbd>, then <kbd>ArrowLeft</kbd>. Which way does the nose point? Which way does the path curve?</li>
+        <li>Hold <kbd>ArrowDown</kbd> to reverse, then <kbd>ArrowLeft</kbd>. Which way does the rear swing? Watch the back of the car, not the nose.</li>
+        <li>Stop, then set <code>car.angle = Math.PI / 2;</code> in the console. Hold <kbd>ArrowUp</kbd>. The car should move left and be drawn nose-left. If the drawing points right, the rotation sign is wrong.</li>
+      </ol>
+
+      <p>For a controlled experiment, make a copy of <code>car.js</code> before editing. This project has no git history to undo a change for you.</p>
+
+      <ol>
+        <li>Change <code>ctx.rotate(-this.angle)</code> to <code>ctx.rotate(this.angle)</code>. The path still goes left, but the car is drawn nose-right. The movement and the drawing disagree. Restore the minus.</li>
+        <li>Change the <code>flip</code> line to <code>const flip = 1;</code>. Reverse, then press left. The rear now swings right. Restore the conditional.</li>
+      </ol>
+
+      <aside class="callout callout--gold">
+        <p class="callout-title">Challenge</p>
+        <p>At speed −2 and angle 0, hold left for exactly one frame. Predict the sign of Δx before running. With the flip on, it is negative; with the flip off, it is positive. Explain both without looking at the table.</p>
+      </aside>
+
+      <aside class="callout callout--win">
+        <p class="callout-title">Teach it back</p>
+        <p>Without looking, name the three minus signs and the system each one belongs to. Then explain why the car's nose turns right while the rear goes left in a reverse-left turn. If you can do that, the drawing and steering systems are yours.</p>
+      </aside>
+    </section>
+
+    <section aria-labelledby="section-source">
+      <h2 id="section-source"><span class="sec-num">Section 10</span>Primary sources</h2>
+
+      <p>Read the canvas references for the rotation convention, and the driving manual for the behavior the steering code is trying to reproduce.</p>
+
+      <div class="source-card">
+        <div class="source-mark" aria-hidden="true">1</div>
+        <div>
+          <h3><a href="https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/rotate" target="_blank" rel="noreferrer">MDN — CanvasRenderingContext2D.rotate()</a></h3>
+          <p>The primary reference for <code>rotate()</code>: radians, the transformation matrix, and the clockwise direction on a y-down canvas. Short enough to read in one sitting.</p>
+          <p class="source-meta">Primary source · free online · about 5 minutes</p>
+        </div>
+      </div>
+
+      <div class="source-card">
+        <div class="source-mark" aria-hidden="true">2</div>
+        <div>
+          <h3><a href="https://developer.mozilla.org/en-US/docs/Web/API/Canvas_API/Tutorial/Transformations" target="_blank" rel="noreferrer">MDN — Canvas transformations</a></h3>
+          <p>How <code>translate</code>, <code>rotate</code>, and <code>save</code>/<code>restore</code> compose. Read the sections on translation and rotation; they are exactly the operations in <code>draw()</code>.</p>
+          <p class="source-meta">Primary source · free online · about 10 minutes</p>
+        </div>
+      </div>
+
+      <div class="source-card">
+        <div class="source-mark" aria-hidden="true">3</div>
+        <div>
+          <h3><a href="https://www.police.gov.sg/-/media/SPF/Advisories/FTTEN24.pdf" target="_blank" rel="noreferrer">Singapore Police Force — Final Theory of Driving</a></h3>
+          <p>Section 15, <em>Steering a vehicle in reverse</em>: “When the steering wheel is turned to the left, the vehicle will move forward or reverse to the left.” This is the real-world behavior the <code>flip</code> reproduces. The PDF is official driving-theory material.</p>
+          <p class="source-meta">Official handbook · free PDF · read section 15</p>
+        </div>
+      </div>
+
+      <p>When you finish, explain the three minus signs to me in your own words. I will check the reverse case first, because that is where the systems are easiest to mix up.</p>
+    </section>
+
+    <aside class="teacher">
+      <p class="eyebrow">Your teacher is here</p>
+      <p>If a sign still feels arbitrary, bring the exact angle, speed, and key you pressed. We will trace the nose, the velocity, and the drawing separately until they agree.</p>
+    </aside>
+
+    <footer class="lesson-footer">
+      <nav class="footer-nav" aria-label="Lesson navigation">
+        <span>Reference: <a href="../reference/rotation-and-reverse.html">Rotation &amp; reverse</a> · <a href="../reference/trig-for-car-movement.html">Trig for car movement</a> · <a href="../reference/trig-glossary.html">Glossary</a></span>
+        <span>Previous: <a href="0001-angle-to-motion.html">One angle, two directions</a> · Next: sensor rays</span>
+      </nav>
+      <p>Lesson 02 · <a href="../MISSION.md">Mission: Trigonometry for a Self-Driving Car</a> · 16 November 2026</p>
+    </footer>
+  </article>
+
+  <script src="../assets/quiz.js"></script>
+  <script src="../assets/rotation-lab.js"></script>
+  <script src="../assets/reverse-lab.js"></script>
+</body>
+</html>
