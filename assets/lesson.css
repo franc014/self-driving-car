@@ -992,6 +992,88 @@ input[type="range"] {
   stroke: var(--accent);
 }
 
+/* Road geometry lab */
+
+.road-surface {
+  fill: #efe6d6;
+}
+
+.road-border {
+  stroke: var(--ink);
+  stroke-width: 5;
+  stroke-linecap: round;
+}
+
+.road-divider {
+  stroke: var(--accent);
+  stroke-width: 3.5;
+  stroke-dasharray: 12 10;
+}
+
+.lane-center-dot {
+  fill: var(--blue);
+  stroke: var(--paper-raised);
+  stroke-width: 2;
+}
+
+.lane-label {
+  font-family: var(--sans);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  fill: var(--muted);
+  paint-order: stroke;
+  stroke: var(--paper-raised);
+  stroke-width: 3px;
+  stroke-linejoin: round;
+}
+
+.lane-label--index {
+  fill: var(--blue);
+  font-weight: 700;
+}
+
+.probe-line {
+  stroke: var(--gold);
+  stroke-width: 2;
+  stroke-dasharray: 4 4;
+}
+
+.probe-dot {
+  fill: var(--gold);
+  stroke: var(--paper-raised);
+  stroke-width: 2;
+}
+
+.probe-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 700;
+  fill: var(--gold);
+  paint-order: stroke;
+  stroke: var(--paper-raised);
+  stroke-width: 3px;
+  stroke-linejoin: round;
+}
+
+.lerp-axis {
+  stroke: var(--ink);
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.lerp-tick {
+  stroke: var(--rule-strong);
+  stroke-width: 1.4;
+}
+
+.lerp-fraction {
+  font-family: var(--sans);
+  font-size: 9px;
+  fill: var(--muted);
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
 /* ---------- Source card ---------- */
 
 .source-card {
@@ -1260,6 +1342,15 @@ input[type="range"] {
 
   .quiz {
     padding: 1rem 0.9rem 0.8rem;
+  }
+
+  :not(pre) > code {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .source-card h3 {
+    overflow-wrap: anywhere;
   }
 
   .source-card {

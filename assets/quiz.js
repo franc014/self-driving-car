@@ -25,6 +25,10 @@
 
   document.querySelectorAll("[data-quiz]").forEach((quiz) => {
     const questions = [...quiz.querySelectorAll("[data-question]")];
+    const correctText =
+      quiz.dataset.correctText || "Correct — that is the right displacement.";
+    const wrongText =
+      quiz.dataset.wrongText || "Not quite — check the signs and the angle.";
 
     questions.forEach((question) => {
       const optionList = question.querySelector("[data-options]");
@@ -73,9 +77,7 @@
           if (!isCorrect) option.classList.add("is-wrong");
 
           if (feedback) {
-            feedback.textContent = isCorrect
-              ? "Correct — that is the right displacement."
-              : "Not quite — check the signs and the angle.";
+            feedback.textContent = isCorrect ? correctText : wrongText;
             feedback.classList.add(isCorrect ? "is-correct" : "is-wrong");
           }
 

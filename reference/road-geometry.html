@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Reference — Road geometry, lanes, and lerp</title>
+  <meta name="description" content="Cheat sheet for the self-driving car's road interval, lane centers, dividers, linear interpolation, border segments, and the camera transform.">
+  <link rel="stylesheet" href="../assets/lesson.css">
+</head>
+<body>
+  <article class="reference">
+    <header class="ref-header">
+      <p class="kicker">Reference · Road geometry</p>
+      <h1>Road geometry, lanes, and lerp</h1>
+      <p class="ref-lede">The compressed version of <a href="../lessons/0003-road-geometry.html">Lesson 03</a>. Use it when a lane is off by half its width, when a border needs to become a segment, or when the camera makes a world coordinate look wrong.</p>
+    </header>
+
+    <aside class="callout callout--note">
+      <p class="callout-title">The one-sentence model</p>
+      <p>The road is an interval <code>[left, right]</code>; every lane boundary is a fraction <code>i / laneCount</code> across it; every lane center is half a lane further in.</p>
+    </aside>
+
+    <section aria-labelledby="ref-interval">
+      <h2 id="ref-interval"><span class="sec-num">01</span>The road interval</h2>
+
+      <div class="formula-block">
+        <span class="formula-label">Constructor</span>
+        left = x − width / 2<br>
+        right = x + width / 2<br>
+        width = right − left
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <caption>Values in this repo</caption>
+          <thead>
+            <tr>
+              <th scope="col">Symbol</th>
+              <th scope="col">Meaning</th>
+              <th scope="col" class="num">Value</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>canvas.width</code></td>
+              <td>Fixed canvas width</td>
+              <td class="num">400</td>
+            </tr>
+            <tr>
+              <td><code>road.x</code></td>
+              <td>Road center</td>
+              <td class="num">200</td>
+            </tr>
+            <tr>
+              <td><code>road.width</code></td>
+              <td>Full road width, 90% of canvas</td>
+              <td class="num">360</td>
+            </tr>
+            <tr>
+              <td><code>road.left</code></td>
+              <td>Left border x</td>
+              <td class="num">20</td>
+            </tr>
+            <tr>
+              <td><code>road.right</code></td>
+              <td>Right border x</td>
+              <td class="num">380</td>
+            </tr>
+            <tr>
+              <td><code>road.laneCount</code></td>
+              <td>Number of equal strips</td>
+              <td class="num">3</td>
+            </tr>
+            <tr>
+              <td><code>laneWidth</code></td>
+              <td><code>width / laneCount</code>, derived</td>
+              <td class="num">120</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p><strong>World coordinates.</strong> The road object stores world x values. The camera translation in <code>main.js</code> happens at draw time and does not modify the road.</p>
+    </section>
+
+    <section aria-labelledby="ref-lanes">
+      <h2 id="ref-lanes"><span class="sec-num">02</span>Lane boundaries and centers</h2>
+
+      <div class="formula-block">
+        <span class="formula-label">The two placements</span>
+        laneWidth = width / laneCount<br><br>
+        boundary<sub>i</sub> = left + i · laneWidth &nbsp;&nbsp; = lerp(left, right, <em>i</em> / laneCount)<br>
+        center<sub>i</sub> &nbsp;&nbsp;&nbsp;= left + (i + 0.5) · laneWidth = lerp(left, right, (<em>i</em> + 0.5) / laneCount)<br><br>
+        center<sub>i</sub> = boundary<sub>i</sub> + laneWidth / 2
+      </div>
+
+      <p><code>i</code> runs from 0 to <code>laneCount</code> for boundaries. For centers, valid indices are 0 to <code>laneCount − 1</code>.</p>
+
+      <div class="table-wrap">
+        <table>
+          <caption>Same width, different lane counts; width 360, left 20, right 380</caption>
+          <thead>
+            <tr>
+              <th scope="col" class="num">Lanes</th>
+              <th scope="col" class="num">Lane width</th>
+              <th scope="col">Divider x</th>
+              <th scope="col">Center x</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="num">2</td>
+              <td class="num">180</td>
+              <td>200</td>
+              <td>110, 290</td>
+            </tr>
+            <tr>
+              <td class="num">3</td>
+              <td class="num">120</td>
+              <td>140, 260</td>
+              <td>80, 200, 320</td>
+            </tr>
+            <tr>
+              <td class="num">4</td>
+              <td class="num">90</td>
+              <td>110, 200, 290</td>
+              <td>65, 155, 245, 335</td>
+            </tr>
+            <tr>
+              <td class="num">5</td>
+              <td class="num">72</td>
+              <td>92, 164, 236, 308</td>
+              <td>56, 128, 200, 272, 344</td>
+            </tr>
+            <tr>
+              <td class="num">6</td>
+              <td class="num">60</td>
+              <td>80, 140, 200, 260, 320</td>
+              <td>50, 110, 170, 230, 290, 350</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3 id="ref-reverse">Reverse lookup: which lane contains x?</h3>
+
+      <div class="formula-block">
+        <span class="formula-label">Not in road.js yet; useful for lane detection</span>
+        t = (x − left) / (right − left)<br>
+        laneIndex = clamp(floor(t · laneCount), 0, laneCount − 1)<br>
+        center of that lane = lerp(left, right, (laneIndex + 0.5) / laneCount)
+      </div>
+    </section>
+
+    <section aria-labelledby="ref-lerp">
+      <h2 id="ref-lerp"><span class="sec-num">03</span>Linear interpolation</h2>
+
+      <div class="formula-block">
+        <span class="formula-label">util.js</span>
+        lerp(A, B, t) = A + (B − A) · t<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; = (1 − t) · A + t · B<br><br>
+        t = 0 &nbsp;→ A<br>
+        t = 1 &nbsp;→ B<br>
+        t = 0.5 → midpoint<br>
+        t &lt; 0 or t &gt; 1 → extrapolation
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <caption><code>lerp(20, 380, t)</code></caption>
+          <thead>
+            <tr>
+              <th scope="col" class="num">t</th>
+              <th scope="col" class="num">Result</th>
+              <th scope="col">Feature on the 3-lane road</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="num">0</td>
+              <td class="num">20</td>
+              <td>Left border</td>
+            </tr>
+            <tr>
+              <td class="num">1/6</td>
+              <td class="num">80</td>
+              <td>Lane 0 center</td>
+            </tr>
+            <tr>
+              <td class="num">1/3</td>
+              <td class="num">140</td>
+              <td>Divider 1</td>
+            </tr>
+            <tr>
+              <td class="num">1/2</td>
+              <td class="num">200</td>
+              <td>Lane 1 center</td>
+            </tr>
+            <tr>
+              <td class="num">2/3</td>
+              <td class="num">260</td>
+              <td>Divider 2</td>
+            </tr>
+            <tr>
+              <td class="num">5/6</td>
+              <td class="num">320</td>
+              <td>Lane 2 center</td>
+            </tr>
+            <tr>
+              <td class="num">1</td>
+              <td class="num">380</td>
+              <td>Right border</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p>The weighted-average form is the intuition: at <code>t = 0.25</code>, the result is 75% of <code>A</code> and 25% of <code>B</code>. The weights always sum to 1. See <a href="https://en.wikipedia.org/wiki/Linear_interpolation" target="_blank" rel="noreferrer">Wikipedia's linear interpolation article</a>.</p>
+
+      <h3 id="ref-lerp-2d">lerp on two coordinates</h3>
+
+      <div class="formula-block">
+        <span class="formula-label">A point fraction t along a segment</span>
+        P.x = lerp(A.x, B.x, t)<br>
+        P.y = lerp(A.y, B.y, t)
+      </div>
+
+      <p>Use the same <code>t</code> for both coordinates. A sensor ray and a border are both segments; the intersection is the pair of <code>t</code> values that produce the same point. That is the next mathematical step after this reference: <a href="https://www.youtube.com/watch?v=fHOLQJo0FjQ" target="_blank" rel="noreferrer">Radu's segment intersection lesson</a>.</p>
+    </section>
+
+    <section aria-labelledby="ref-code">
+      <h2 id="ref-code"><span class="sec-num">04</span>Code patterns</h2>
+
+      <figure class="code-figure">
+        <pre><code><span class="comment">// lane center</span>
+getLaneCenter(laneIndex){
+    const laneWidth = this.width / this.laneCount;
+    return this.left
+         + laneWidth / 2
+         + Math.min(laneIndex, this.laneCount - 1) * laneWidth;
+}
+
+<span class="comment">// divider inside draw()</span>
+for (let i = 1; i &lt;= this.laneCount - 1; i++) {
+    const x = lerp(this.left, this.right, i / this.laneCount);
+    ...
+}
+
+<span class="comment">// border segment</span>
+this.borders = [
+    [{x: this.left,  y: this.top}, {x: this.left,  y: this.bottom}],
+    [{x: this.right, y: this.top}, {x: this.right, y: this.bottom}]
+];</code></pre>
+        <figcaption><strong>Patterns.</strong> The center formula starts half a lane in; the divider loop skips the two borders; the border array stores segments, not numbers.</figcaption>
+      </figure>
+    </section>
+
+    <section aria-labelledby="ref-borders">
+      <h2 id="ref-borders"><span class="sec-num">05</span>Borders and practical infinity</h2>
+
+      <div class="table-wrap">
+        <table>
+          <caption>The border data structure</caption>
+          <thead>
+            <tr>
+              <th scope="col">Level</th>
+              <th scope="col">Type</th>
+              <th scope="col">Meaning</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>borders</code></td>
+              <td>Array of segments</td>
+              <td>Every edge of the drivable surface</td>
+            </tr>
+            <tr>
+              <td><code>border</code></td>
+              <td>Two points</td>
+              <td>One edge, from start to end</td>
+            </tr>
+            <tr>
+              <td><code>border[0]</code></td>
+              <td><code>{x, y}</code></td>
+              <td>Start point</td>
+            </tr>
+            <tr>
+              <td><code>border[1]</code></td>
+              <td><code>{x, y}</code></td>
+              <td>End point</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p><code>top = −1000000</code> and <code>bottom = +1000000</code> keep the road far longer than any viewport. Use a large finite number rather than <code>Infinity</code>: infinities propagate through subtraction and intersection formulas and turn into <code>NaN</code>.</p>
+
+      <p>Commands that use the borders:</p>
+
+      <ul class="checklist">
+        <li><code>road.borders[0]</code> is the left edge; <code>road.borders[1]</code> is the right edge.</li>
+        <li><code>border[0]</code> is the top point; <code>border[1]</code> is the bottom point in this build.</li>
+        <li>Drawing only needs the two endpoints; intersection needs the same two endpoints plus a ray.</li>
+      </ul>
+    </section>
+
+    <section aria-labelledby="ref-camera">
+      <h2 id="ref-camera"><span class="sec-num">06</span>Camera: world to screen</h2>
+
+      <div class="formula-block">
+        <span class="formula-label">main.js</span>
+        translate(0, −car.y + 0.7 · canvas.height)<br><br>
+        screenY = worldY − car.y + 0.7 · canvas.height<br>
+        screenX = worldX &nbsp;&nbsp; (no horizontal translation in this build)
+      </div>
+
+      <p>At <code>car.y = 200</code> and <code>canvas.height = 800</code>, the translation is <code>−200 + 560 = 360</code>. The car's screen y is <code>200 + 360 = 560</code>. If the car moves to <code>y = 150</code>, the translation becomes 410 and the car's screen y is still 560.</p>
+
+      <ul class="checklist">
+        <li><strong>World coordinates:</strong> stored by the road and car; unbounded.</li>
+        <li><strong>Screen coordinates:</strong> pixels after the camera translation; y grows down.</li>
+        <li><strong>Camera transform:</strong> a draw-time translation, not a property of the road.</li>
+      </ul>
+    </section>
+
+    <section aria-labelledby="ref-state">
+      <h2 id="ref-state"><span class="sec-num">07</span>Canvas state checklist</h2>
+
+      <ul class="checklist">
+        <li><code>ctx.setLineDash([20, 20])</code> persists until changed.</li>
+        <li><code>ctx.setLineDash([])</code> restores solid strokes.</li>
+        <li><code>ctx.lineWidth</code> and <code>ctx.strokeStyle</code> persist across paths.</li>
+        <li>Setting <code>canvas.width</code> or <code>canvas.height</code> clears the bitmap and resets the context, including transform and styles.</li>
+        <li><code>ctx.save()</code> and <code>ctx.restore()</code> isolate the camera transform.</li>
+        <li>Draw order controls layering: road first, car second.</li>
+      </ul>
+
+      <p>References: <a href="https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/setLineDash" target="_blank" rel="noreferrer">MDN <code>setLineDash</code></a>, <a href="https://developer.mozilla.org/en-US/docs/Web/API/HTMLCanvasElement/height" target="_blank" rel="noreferrer">MDN <code>HTMLCanvasElement.height</code></a>, and <a href="https://developer.mozilla.org/en-US/docs/Web/API/Canvas_API/Tutorial/Transformations" target="_blank" rel="noreferrer">MDN canvas transformations</a>.</p>
+    </section>
+
+    <section aria-labelledby="ref-pitfalls">
+      <h2 id="ref-pitfalls"><span class="sec-num">08</span>Pitfalls</h2>
+
+      <div class="table-wrap">
+        <table>
+          <caption>What goes wrong and which fraction fixes it</caption>
+          <thead>
+            <tr>
+              <th scope="col">Symptom</th>
+              <th scope="col">Likely cause</th>
+              <th scope="col">Check</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Car is half a lane off</td>
+              <td>Using <code>i / n</code> for a center</td>
+              <td>Center needs <code>(i + 0.5) / n</code></td>
+            </tr>
+            <tr>
+              <td>Road is twice as wide</td>
+              <td>Treating <code>width</code> as half-width</td>
+              <td><code>left = x − width / 2</code></td>
+            </tr>
+            <tr>
+              <td>Borders come out dashed</td>
+              <td>Dash pattern not reset</td>
+              <td><code>setLineDash([])</code> before borders</td>
+            </tr>
+            <tr>
+              <td>Lane centers move but edges do not</td>
+              <td><code>width</code> mutated after construction</td>
+              <td><code>left</code>/<code>right</code> are snapshots</td>
+            </tr>
+            <tr>
+              <td>Road scrolls off screen</td>
+              <td>Camera translation missing or inverted</td>
+              <td><code>−car.y + 0.7 × height</code></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <aside class="callout callout--gold">
+        <p class="callout-title">Ask two questions before editing</p>
+        <p>Is this an <strong>edge</strong> or a <strong>middle</strong>? Is this number a <strong>world coordinate</strong> or a <strong>screen coordinate</strong>? Almost every road bug is one of those two confusions.</p>
+      </aside>
+    </section>
+
+    <footer class="lesson-footer">
+      <nav class="footer-nav" aria-label="Reference navigation">
+        <span><a href="../lessons/0003-road-geometry.html">← Lesson 03: Lanes are fractions of the road</a></span>
+        <span><a href="trig-glossary.html">Glossary →</a></span>
+      </nav>
+      <p>Reference 03 · Trigonometry for a Self-Driving Car · 17 November 2026</p>
+    </footer>
+  </article>
+</body>
+</html>

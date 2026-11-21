@@ -83,6 +83,36 @@
 
       <dt id="displacement">Displacement</dt>
       <dd>The change in position over one frame: <code>(Δx, Δy)</code>. The car adds a displacement to its position every frame; a path is the sum of many small displacements.</dd>
+
+      <dt id="lane">Lane</dt>
+      <dd>One of the equal-width strips the road is divided into. A road with <code>laneCount = 3</code> has three lanes, indexed 0, 1, and 2. <a href="../lessons/0003-road-geometry.html#section-fractions">See the lane formulas.</a></dd>
+
+      <dt id="lane-width">Lane width</dt>
+      <dd><code>road.width / road.laneCount</code>. The width of one lane, not the thickness of a painted line. At width 360 and 3 lanes, the lane width is 120.</dd>
+
+      <dt id="lane-center">Lane center</dt>
+      <dd>The x coordinate halfway across a lane, where the car is placed by <code>getLaneCenter(index)</code>. It is half a lane inside the lane's left boundary. <a href="../reference/road-geometry.html#ref-lanes">See the placement table.</a></dd>
+
+      <dt id="lane-divider">Lane divider</dt>
+      <dd>The painted line between two lanes. With 3 lanes there are 2 dividers. A divider is at a whole-lane fraction <code>i / laneCount</code>; a lane center is half a lane further in. <a href="../lessons/0003-road-geometry.html#section-fractions">See the half-lane distinction.</a></dd>
+
+      <dt id="linear-interpolation">Linear interpolation (lerp)</dt>
+      <dd>Returning a point a given fraction of the way from one value to another: <code>lerp(A, B, t) = A + (B − A) · t</code>. At <code>t = 0</code> the result is A; at <code>t = 1</code> it is B. Values outside 0–1 extrapolate. <a href="../reference/road-geometry.html#ref-lerp">See the lerp reference.</a></dd>
+
+      <dt id="parameter-t">Parameter t</dt>
+      <dd>The fraction passed to <code>lerp</code>. It is not a pixel count. <code>t = 0.5</code> means halfway across the interval; the same fraction works after the road width changes.</dd>
+
+      <dt id="segment">Segment</dt>
+      <dd>A straight piece of line defined by two endpoints. The road borders are stored as segments so a sensor ray can later intersect them. <a href="../reference/road-geometry.html#ref-borders">See the border structure.</a></dd>
+
+      <dt id="world-coordinates">World coordinates</dt>
+      <dd>The coordinates the road and car store, independent of the viewport. The camera translates world coordinates into screen coordinates at draw time. <a href="../lessons/0003-road-geometry.html#section-camera">See the camera section.</a></dd>
+
+      <dt id="camera">Camera</dt>
+      <dd>The draw-time transform that decides which part of the world is visible. In this project it is a vertical translation that keeps the car at 70% of the viewport height, so the road appears to scroll past.</dd>
+
+      <dt id="practical-infinity">Practical infinity</dt>
+      <dd>A very large finite number (<code>1000000</code>) used to make the road longer than any viewport. Preferred over <code>Infinity</code> because infinite values can turn intersection arithmetic into <code>NaN</code>.</dd>
     </dl>
 
     <footer class="lesson-footer">
