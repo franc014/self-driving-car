@@ -1,0 +1,1117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lesson 04 — Where a ray meets a border</title>
+  <meta name="description" content="Cast a fan of sensor rays from the car, derive the ray–segment intersection test with a 2D cross product, and keep the closest reading.">
+  <link rel="stylesheet" href="../assets/lesson.css">
+</head>
+<body>
+  <article class="lesson">
+    <header class="lesson-header">
+      <p class="kicker">Lesson 04 · Sensors &amp; vectors</p>
+      <h1>Where a ray meets a border</h1>
+      <p class="dek">A sensor casts rays. Each ray is a segment. A hit is the one point shared by two segments — and two fractions, <code>t</code> and <code>u</code>, tell you where.</p>
+
+      <dl class="meta">
+        <div>
+          <dt>Time</dt>
+          <dd>25–30 minutes</dd>
+        </div>
+        <div>
+          <dt>Prerequisite</dt>
+          <dd>Lesson 03</dd>
+        </div>
+        <div>
+          <dt>Code under study</dt>
+          <dd><code>sensor.js</code>, <code>util.js</code>, <code>road.js</code>, <code>car.js</code></dd>
+        </div>
+        <div>
+          <dt>Mission</dt>
+          <dd><a href="../MISSION.md">derive, don't copy</a></dd>
+        </div>
+      </dl>
+    </header>
+
+    <aside class="mission">
+      <p class="eyebrow">Why this matters</p>
+      <p><strong>How far away is the road edge?</strong> The car cannot see; it can only compute. A sensor casts rays and keeps the closest hit. This lesson derives the ray, the fan, and the intersection test that turns two segments into a distance.</p>
+    </aside>
+
+    <p class="lede">In Lesson 03, the road borders became <a href="../reference/trig-glossary.html#segment">segments</a>. Now we point a ray at them. The question “where does the ray cross the border?” becomes two equations with two unknowns. The solution is <code>getIntersection</code> — and the same function will handle traffic, walls, and any future polygon.</p>
+
+    <section aria-labelledby="section-fan">
+      <h2 id="section-fan"><span class="sec-num">Section 01</span>A sensor is a fan of rays</h2>
+
+      <p>A real proximity sensor sends out a signal and waits for the echo. The delay gives the distance. The simulation skips the signal and computes the distance directly. The technique is <a href="../reference/trig-glossary.html#ray-casting"><strong>ray casting</strong></a>: from a point, in a direction, find the first thing the line meets.</p>
+
+      <p>The <code>Sensor</code> class holds the car and three settings:</p>
+
+      <div class="table-wrap">
+        <table>
+          <caption>The sensor's three settings</caption>
+          <thead>
+            <tr>
+              <th scope="col">Property</th>
+              <th scope="col">Meaning</th>
+              <th scope="col" class="num">Value here</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>rayCount</code></td>
+              <td>How many rays are in the fan</td>
+              <td class="num">3</td>
+            </tr>
+            <tr>
+              <td><code>rayLength</code></td>
+              <td>How far each ray reaches, in world units</td>
+              <td class="num">100</td>
+            </tr>
+            <tr>
+              <td><code>raySpread</code></td>
+              <td>The <em>total</em> angle of the fan, in radians</td>
+              <td class="num">π/4 (45°)</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <figure class="code-figure">
+        <pre><code><span class="comment">// sensor.js — constructor</span>
+class Sensor {
+    constructor(car){
+        this.car = car;
+<span class="hl">        this.rayCount = 3;
+        this.rayLength = 100;
+        this.raySpread = Math.PI / 4; //45 deg</span>
+
+        this.rays = [];
+    }
+}</code></pre>
+        <figcaption><strong>Listing 1.</strong> The constructor stores the car, the three settings, and an empty array for the rays it will cast. The casting itself happens in <code>update()</code>.</figcaption>
+      </figure>
+
+      <aside class="callout callout--gold">
+        <p class="callout-title">Spread is the whole fan</p>
+        <p><code>raySpread</code> is the angle between the first and last ray, not the gap between two neighbours. With 3 rays and a 45° spread, the outer rays sit at <code>+22.5°</code> and <code>−22.5°</code> from the car's heading. The gap between adjacent rays is also 22.5° here, but that is a coincidence of using 3 rays.</p>
+      </aside>
+
+      <aside class="callout callout--note">
+        <p class="callout-title">The video uses different numbers</p>
+        <p>Radu's Lecture 3 uses 5 rays, a length of 150, and a 90° spread. This repo uses 3, 100, and 45°. The numbers change the picture, not the mathematics. The <a href="#section-lab">lab</a> lets you try both.</p>
+      </aside>
+
+      <p>A ray is a question: <em>what is the nearest object along this direction?</em> The answer is a point and a distance — or <code>null</code> if nothing is close enough. The sensor's job each frame is to cast the fan, ask every ray, and store the readings for the car's brain to use later.</p>
+    </section>
+
+    <section aria-labelledby="section-ray">
+      <h2 id="section-ray"><span class="sec-num">Section 02</span>A ray is a vector with a start and a length</h2>
+
+      <p>You already have the direction vector. In <code>car.js</code>, the car moves by <code>(−sin θ, −cos θ)</code> times its speed. The same vector points along the car's nose. A ray at angle <code>θ</code> uses that vector, scaled by the ray's length:</p>
+
+      <div class="formula-block">
+        <span class="formula-label">The ray endpoint</span>
+        d = (−sin θ, −cos θ)&nbsp;&nbsp;&nbsp;<span style="color: var(--muted); font-family: var(--sans); font-size: 0.72rem;">(a unit vector along the ray)</span><br>
+        end = start + L · d<br><br>
+        end.x = start.x − L · sin θ<br>
+        end.y = start.y − L · cos θ
+      </div>
+
+      <p>The code writes the two components directly:</p>
+
+      <figure class="code-figure">
+        <pre><code><span class="comment">// sensor.js — casting one ray</span>
+const start = { x: this.car.x, y: this.car.y };
+const end = {
+<span class="hl">    x: this.car.x - Math.sin(rayAngle) * this.rayLength,
+    y: this.car.y - Math.cos(rayAngle) * this.rayLength</span>
+};</code></pre>
+        <figcaption><strong>Listing 2.</strong> The start is the car's centre. The end is one ray length away, along the direction given by <code>rayAngle</code>.</figcaption>
+      </figure>
+
+      <p>Run the numbers with the car at <code>(200, 200)</code> and a ray length of 100:</p>
+
+      <div class="table-wrap">
+        <table>
+          <caption>One ray, five directions</caption>
+          <thead>
+            <tr>
+              <th scope="col" class="num">θ</th>
+              <th scope="col" class="num">sin θ</th>
+              <th scope="col" class="num">cos θ</th>
+              <th scope="col" class="num">end.x</th>
+              <th scope="col" class="num">end.y</th>
+              <th scope="col">Direction</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="num">0°</td>
+              <td class="num">0</td>
+              <td class="num">1</td>
+              <td class="num">200</td>
+              <td class="num">100</td>
+              <td>Up</td>
+            </tr>
+            <tr>
+              <td class="num">30°</td>
+              <td class="num">0.5</td>
+              <td class="num">0.866</td>
+              <td class="num">150</td>
+              <td class="num">113.4</td>
+              <td>Up-left</td>
+            </tr>
+            <tr>
+              <td class="num">90°</td>
+              <td class="num">1</td>
+              <td class="num">0</td>
+              <td class="num">100</td>
+              <td class="num">200</td>
+              <td>Left</td>
+            </tr>
+            <tr>
+              <td class="num">−90°</td>
+              <td class="num">−1</td>
+              <td class="num">0</td>
+              <td class="num">300</td>
+              <td class="num">200</td>
+              <td>Right</td>
+            </tr>
+            <tr>
+              <td class="num">180°</td>
+              <td class="num">0</td>
+              <td class="num">−1</td>
+              <td class="num">200</td>
+              <td class="num">300</td>
+              <td>Down</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p>Every row is the same formula. The signs come from sine and cosine; the two minus signs in the code are the fixed canvas conversion from Lesson 01. If this table feels shaky, revisit <a href="0001-angle-to-motion.html#section-unit-circle">Lesson 01's unit circle</a> before continuing.</p>
+
+      <h3>The fan is an interpolation of angles</h3>
+
+      <p>The sensor does not store three separate angles. It sweeps from one side of the fan to the other with <code>lerp</code>:</p>
+
+      <figure class="code-figure">
+        <pre><code><span class="comment">// sensor.js — update(), as it stands in this branch</span>
+update(){
+    this.rays = [];
+    for(let i = 0; i &lt; this.rayCount; i++){
+<span class="hl">        const rayAngle = lerp(
+            this.raySpread / 2,
+            -this.raySpread / 2,
+            i / (this.rayCount - 1)
+        );</span>
+
+        const start = { x: this.car.x, y: this.car.y };
+        const end = {
+            x: this.car.x - Math.sin(rayAngle) * this.rayLength,
+            y: this.car.y - Math.cos(rayAngle) * this.rayLength
+        };
+        this.rays.push([start, end]);
+    }
+}</code></pre>
+        <figcaption><strong>Listing 3.</strong> The loop sweeps from <code>+spread/2</code> to <code>−spread/2</code>. This is the fan before the car's rotation is added.</figcaption>
+      </figure>
+
+      <aside class="callout callout--gold">
+        <p class="callout-title">Two edits before the fan is correct</p>
+        <p>Compare Listing 3 with the lecture. The lecture adds <code>+ this.car.angle</code> after the <code>lerp</code>, and replaces the fraction with <code>this.rayCount === 1 ? 0.5 : i / (this.rayCount - 1)</code>. Without the first edit, every ray points up no matter which way the car faces. Without the second, a one-ray sensor divides by zero and produces <code>NaN</code>. Make both edits in <code>sensor.js</code> before using the lab.</p>
+      </aside>
+
+      <div class="formula-block">
+        <span class="formula-label">The corrected angle</span>
+        rayAngle = lerp(+spread/2, −spread/2, fraction) + car.angle<br>
+        fraction = rayCount === 1 ? 0.5 : i / (rayCount − 1)
+      </div>
+
+      <p>In the lecture's final code, this loop lives in a private helper called <code>#castRays()</code>. Your branch currently keeps it inside <code>update()</code>. The name of the method does not change the math; the two edits do.</p>
+
+      <div class="table-wrap">
+        <table>
+          <caption>The 3-ray fan with a 45° spread</caption>
+          <thead>
+            <tr>
+              <th scope="col" class="num">i</th>
+              <th scope="col" class="num">Fraction</th>
+              <th scope="col" class="num">Offset</th>
+              <th scope="col" class="num">Ray angle</th>
+              <th scope="col">Side</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="num">0</td>
+              <td class="num">0</td>
+              <td class="num">+22.5°</td>
+              <td class="num">car.angle + 22.5°</td>
+              <td>Leftmost</td>
+            </tr>
+            <tr>
+              <td class="num">1</td>
+              <td class="num">0.5</td>
+              <td class="num">0°</td>
+              <td class="num">car.angle</td>
+              <td>Centre</td>
+            </tr>
+            <tr>
+              <td class="num">2</td>
+              <td class="num">1</td>
+              <td class="num">−22.5°</td>
+              <td class="num">car.angle − 22.5°</td>
+              <td>Rightmost</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p>Why start at <code>+spread/2</code>? Because a positive angle turns left. Index 0 is the leftmost ray, and the loop sweeps to the right. The <code>rayCount === 1 ? 0.5</code> guard handles a single ray: <code>i/(rayCount−1)</code> would be <code>0/0</code>, so the code chooses the midpoint of the interval instead. One ray sits in the centre of the fan.</p>
+
+      <aside class="callout callout--note">
+        <p class="callout-title">Radians, not degrees</p>
+        <p><code>raySpread</code> is in radians because <code>Math.sin</code> and <code>Math.cos</code> expect radians. <code>π/4</code> is 45°. To convert: <code>degrees * Math.PI / 180</code>. The lab shows degrees because they are easier to read; it converts before computing.</p>
+      </aside>
+
+      <aside class="callout callout--gold">
+        <p class="callout-title">The ray angle is not the car angle</p>
+        <p><code>car.angle</code> is the centre of the fan. Each ray adds its own offset. If the car turns 10° left, every ray turns 10° left with it. The fan is rigid; the car rotates the whole fan.</p>
+      </aside>
+    </section>
+
+    <section aria-labelledby="section-hit">
+      <h2 id="section-hit"><span class="sec-num">Section 03</span>A hit is a point on both segments</h2>
+
+      <p>A segment can be written as a start point plus a fraction of its direction. This is the same <code>lerp</code> from Lesson 03, now applied to both coordinates:</p>
+
+      <div class="formula-block">
+        <span class="formula-label">Two parametric segments</span>
+        P(t) = A + t(B − A)&nbsp;&nbsp;&nbsp;0 ≤ t ≤ 1&nbsp;&nbsp;&nbsp;<span style="color: var(--muted); font-family: var(--sans); font-size: 0.72rem;">(the ray)</span><br>
+        Q(u) = C + u(D − C)&nbsp;&nbsp;&nbsp;0 ≤ u ≤ 1&nbsp;&nbsp;&nbsp;<span style="color: var(--muted); font-family: var(--sans); font-size: 0.72rem;">(the border)</span>
+      </div>
+
+      <p>At <code>t = 0</code> the point is <code>A</code>; at <code>t = 1</code> it is <code>B</code>. At <code>t = 0.5</code> it is the midpoint. The same fraction applies to x and y, which is why the point stays on the straight segment.</p>
+
+      <p>A hit means the two points are the same point: <code>P(t) = Q(u)</code>. Write that equality once for x and once for y:</p>
+
+      <div class="formula-block">
+        <span class="formula-label">Two equations, two unknowns</span>
+        A.x + t(B.x − A.x) = C.x + u(D.x − C.x)<br>
+        A.y + t(B.y − A.y) = C.y + u(D.y − C.y)
+      </div>
+
+      <p>Everything else in this lesson is algebra on those two lines. The two fractions answer two different questions:</p>
+
+      <ul>
+        <li><strong>t</strong> — how far along the ray is the hit? Distance = <code>t × rayLength</code>.</li>
+        <li><strong>u</strong> — how far along the border is the hit? Position = <code>lerp(C, D, u)</code>.</li>
+      </ul>
+
+      <figure>
+        <svg class="diagram" viewBox="0 0 520 300" role="img" aria-labelledby="ray-segment-title ray-segment-desc">
+          <title id="ray-segment-title">A ray from A to B crossing a border segment from C to D at point P</title>
+          <desc id="ray-segment-desc">The ray starts at A, passes through P, and ends at B. The border runs from C to D. The fraction t measures how far P is along the ray; u measures how far P is along the border.</desc>
+          <defs>
+            <pattern id="ray-segment-grid" width="20" height="20" patternUnits="userSpaceOnUse">
+              <path d="M 20 0 L 0 0 0 20" fill="none" stroke="var(--rule)" stroke-width="1"></path>
+            </pattern>
+            <marker id="ray-arrow" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto">
+              <path d="M 0 0 L 9 3.5 L 0 7 z" fill="var(--accent)"></path>
+            </marker>
+          </defs>
+
+          <rect x="8" y="8" width="504" height="284" rx="4" fill="url(#ray-segment-grid)" opacity="0.45"></rect>
+          <text x="24" y="28" class="axis-label">one ray · one border</text>
+
+          <line x1="380" y1="20" x2="380" y2="280" class="segment-line"></line>
+          <line x1="120" y1="240" x2="430" y2="133" class="ray-line" marker-end="url(#ray-arrow)"></line>
+
+          <circle cx="120" cy="240" r="5" class="ray-start"></circle>
+          <circle cx="430" cy="133" r="4.5" class="ray-end"></circle>
+          <circle cx="380" cy="20" r="4" class="ray-start"></circle>
+          <circle cx="380" cy="280" r="4" class="ray-start"></circle>
+          <circle cx="380" cy="150" r="5.5" class="intersection-point"></circle>
+
+          <text x="108" y="254" class="ray-label" text-anchor="end">A</text>
+          <text x="440" y="128" class="ray-label" text-anchor="start">B</text>
+          <text x="392" y="18" class="ray-label" text-anchor="start">C</text>
+          <text x="392" y="294" class="ray-label" text-anchor="start">D</text>
+          <text x="392" y="144" class="ray-label ray-label--hit" text-anchor="start">P</text>
+
+          <text x="238" y="188" class="ray-label" text-anchor="end">t = 0.84</text>
+          <text x="368" y="90" class="ray-label" text-anchor="end">u = 0.50</text>
+          <text x="250" y="222" class="diagram-label">ray: A → P is t of the way to B</text>
+          <text x="392" y="250" class="diagram-label">border: C → P is u of the way to D</text>
+        </svg>
+        <figcaption><strong>Figure 1.</strong> The hit <code>P</code> is one point, but it has two addresses: <code>t</code> along the ray and <code>u</code> along the border. A hit requires both fractions to be between 0 and 1.</figcaption>
+      </figure>
+
+      <aside class="callout callout--gold">
+        <p class="callout-title">Lines cross; segments might not</p>
+        <p>Two infinite lines cross unless they are parallel. Two <em>segments</em> only cross if the crossing lands inside both finite pieces. That is the whole job of the bounds check: <code>0 ≤ t ≤ 1</code> and <code>0 ≤ u ≤ 1</code>.</p>
+      </aside>
+
+      <aside class="callout callout--note">
+        <p class="callout-title">t is a fraction, not a distance</p>
+        <p><code>t = 0.5</code> means halfway along the ray, not half a pixel. If the ray length is 100, the distance is 50. If the length changes to 200, the same <code>t = 0.5</code> means 100. This is the same distinction as Lesson 03's <code>lerp</code> parameter.</p>
+      </aside>
+    </section>
+
+    <section aria-labelledby="section-solve">
+      <h2 id="section-solve"><span class="sec-num">Section 04</span>Solve the two equations with a cross product</h2>
+
+      <p>Name the three vectors in the picture:</p>
+
+      <div class="formula-block">
+        <span class="formula-label">The three vectors</span>
+        r = B − A&nbsp;&nbsp;&nbsp;<span style="color: var(--muted); font-family: var(--sans); font-size: 0.72rem;">(the ray's direction)</span><br>
+        s = D − C&nbsp;&nbsp;&nbsp;<span style="color: var(--muted); font-family: var(--sans); font-size: 0.72rem;">(the border's direction)</span><br>
+        w = C − A&nbsp;&nbsp;&nbsp;<span style="color: var(--muted); font-family: var(--sans); font-size: 0.72rem;">(from the ray's start to the border's start)</span>
+      </div>
+
+      <p>The equation <code>A + t r = C + u s</code> becomes <code>t r − u s = w</code>. That is still two scalar equations:</p>
+
+      <div class="formula-block">
+        <span class="formula-label">In components</span>
+        t · r.x − u · s.x = w.x<br>
+        t · r.y − u · s.y = w.y
+      </div>
+
+      <p>Eliminate <code>u</code>. Multiply the x equation by <code>s.y</code> and the y equation by <code>s.x</code>, then subtract:</p>
+
+      <div class="formula-block">
+        <span class="formula-label">Eliminating u</span>
+        t · r.x · s.y − u · s.x · s.y = w.x · s.y<br>
+        t · r.y · s.x − u · s.y · s.x = w.y · s.x<br>
+        <span style="color: var(--muted);">────────────────────────────────────────</span><br>
+        t (r.x · s.y − r.y · s.x) = w.x · s.y − w.y · s.x
+      </div>
+
+      <p>The two <code>u</code> terms cancel because <code>s.x · s.y = s.y · s.x</code>. The left side is <code>t</code> times a single number. The right side is another single number. So:</p>
+
+      <div class="formula-block">
+        <span class="formula-label">The two fractions</span>
+        t = (w × s) / (r × s)<br>
+        u = (w × r) / (r × s)<br><br>
+        where&nbsp;&nbsp;p × q = p.x · q.y − p.y · q.x
+      </div>
+
+      <p>The symbol <code>×</code> here is the <strong>2D cross product</strong>. It takes two vectors and returns one number, not a vector. That number is the signed area of the parallelogram spanned by the two vectors. It is also called a <strong>determinant</strong>.</p>
+
+      <ul>
+        <li><strong>Zero</strong> means the vectors are parallel, so the two lines never meet at a single point.</li>
+        <li><strong>Positive or negative</strong> tells you which side of the first vector the second one lies on.</li>
+        <li><strong>Its size</strong> is the area, which is why the formula divides by it: the area cancels out and leaves a fraction.</li>
+      </ul>
+
+      <p>You can see the same derivation on <a href="https://en.wikipedia.org/wiki/Line%E2%80%93line_intersection" target="_blank" rel="noreferrer">Wikipedia's line–line intersection page</a>. For the visual meaning of the determinant, watch <a href="https://www.youtube.com/watch?v=Ip3X9LOh2dk" target="_blank" rel="noreferrer">3Blue1Brown's “The determinant”</a>.</p>
+
+      <h3>A worked example</h3>
+
+      <p>Put the car in the right lane at <code>(320, 200)</code> and fire a ray straight right, 100 units long. The right border is the segment from <code>(380, 0)</code> to <code>(380, 400)</code>.</p>
+
+      <div class="table-wrap">
+        <table>
+          <caption>The four points and the three vectors</caption>
+          <thead>
+            <tr>
+              <th scope="col">Quantity</th>
+              <th scope="col">Value</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>A</code> — ray start</td>
+              <td><code>(320, 200)</code></td>
+            </tr>
+            <tr>
+              <td><code>B</code> — ray end</td>
+              <td><code>(420, 200)</code></td>
+            </tr>
+            <tr>
+              <td><code>C</code> — border start</td>
+              <td><code>(380, 0)</code></td>
+            </tr>
+            <tr>
+              <td><code>D</code> — border end</td>
+              <td><code>(380, 400)</code></td>
+            </tr>
+            <tr>
+              <td><code>r = B − A</code></td>
+              <td><code>(100, 0)</code></td>
+            </tr>
+            <tr>
+              <td><code>s = D − C</code></td>
+              <td><code>(0, 400)</code></td>
+            </tr>
+            <tr>
+              <td><code>w = C − A</code></td>
+              <td><code>(60, −200)</code></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="formula-block">
+        <span class="formula-label">Compute the three cross products</span>
+        tTop = w × s = 60 · 400 − (−200) · 0 = 24,000<br>
+        uTop = w × r = 60 · 0 − (−200) · 100 = 20,000<br>
+        bottom = r × s = 100 · 400 − 0 · 0 = 40,000<br><br>
+        t = 24,000 / 40,000 = 0.6<br>
+        u = 20,000 / 40,000 = 0.5
+      </div>
+
+      <p>Both fractions are inside <code>[0, 1]</code>, so the segments really do cross. The hit is:</p>
+
+      <div class="formula-block">
+        <span class="formula-label">The hit point</span>
+        P = lerp(A, B, t) = lerp((320, 200), (420, 200), 0.6) = (380, 200)<br>
+        P = lerp(C, D, u) = lerp((380, 0), (380, 400), 0.5) = (380, 200)
+      </div>
+
+      <p>Both routes give the same point. The distance from the car is <code>t × rayLength = 0.6 × 100 = 60</code>, which matches <code>380 − 320</code>. The ray reaches the border at 60% of its length.</p>
+
+      <h3>What the bounds reject</h3>
+
+      <div class="table-wrap">
+        <table>
+          <caption>The same lines, different fractions</caption>
+          <thead>
+            <tr>
+              <th scope="col" class="num">t</th>
+              <th scope="col" class="num">u</th>
+              <th scope="col">Meaning</th>
+              <th scope="col">Hit?</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="num">0.6</td>
+              <td class="num">0.5</td>
+              <td>Inside both segments</td>
+              <td>Yes</td>
+            </tr>
+            <tr>
+              <td class="num">1.2</td>
+              <td class="num">0.5</td>
+              <td>Past the ray's end</td>
+              <td>No</td>
+            </tr>
+            <tr>
+              <td class="num">0.6</td>
+              <td class="num">1.4</td>
+              <td>Past the border's end</td>
+              <td>No</td>
+            </tr>
+            <tr>
+              <td class="num">−0.2</td>
+              <td class="num">0.5</td>
+              <td>Behind the ray's start</td>
+              <td>No</td>
+            </tr>
+            <tr>
+              <td class="num">—</td>
+              <td class="num">—</td>
+              <td><code>bottom = 0</code>: parallel lines</td>
+              <td>No</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <aside class="callout callout--gold">
+        <p class="callout-title">The infinite lines can cross outside the segments</p>
+        <p>This is the most common sensor bug. The algebra finds where the infinite lines cross. The bounds check decides whether that crossing is on the piece of line the car actually has. A border behind the car, or a ray that stops just short, still produces a crossing — and must still be rejected.</p>
+      </aside>
+    </section>
+
+    <section aria-labelledby="section-code">
+      <h2 id="section-code"><span class="sec-num">Section 05</span>Read <code>getIntersection</code> line by line</h2>
+
+      <p>The course writes the same formulas with the cross products expanded into their components. Here is the function from the lecture:</p>
+
+      <figure class="code-figure">
+        <pre><code><span class="comment">// util.js — the lecture's getIntersection</span>
+function getIntersection(A, B, C, D) {
+<span class="hl">    const tTop = (D.x - C.x) * (A.y - C.y) - (D.y - C.y) * (A.x - C.x);
+    const uTop = (C.y - A.y) * (A.x - B.x) - (C.x - A.x) * (A.y - B.y);
+    const bottom = (D.y - C.y) * (B.x - A.x) - (D.x - C.x) * (B.y - A.y);</span>
+
+    if (bottom != 0) {
+        const t = tTop / bottom;
+        const u = uTop / bottom;
+<span class="hl">        if (t &gt;= 0 &amp;&amp; t &lt;= 1 &amp;&amp; u &gt;= 0 &amp;&amp; u &lt;= 1) {</span>
+            return {
+                x: lerp(A.x, B.x, t),
+                y: lerp(A.y, B.y, t),
+                offset: t
+            };
+        }
+    }
+    return null;
+}</code></pre>
+        <figcaption><strong>Listing 4.</strong> <code>A, B</code> are the ray's endpoints; <code>C, D</code> are the border's endpoints. The function returns a point plus an <code>offset</code>, or <code>null</code> when the segments do not cross.</figcaption>
+      </figure>
+
+      <p>The names are terse, so map them back to the vectors:</p>
+
+      <div class="table-wrap">
+        <table>
+          <caption>Code names and vector meanings</caption>
+          <thead>
+            <tr>
+              <th scope="col">Code</th>
+              <th scope="col">Vector meaning</th>
+              <th scope="col" class="num">Worked example</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>tTop</code></td>
+              <td><code>w × s = (C − A) × (D − C)</code></td>
+              <td class="num">24,000</td>
+            </tr>
+            <tr>
+              <td><code>uTop</code></td>
+              <td><code>w × r = (C − A) × (B − A)</code></td>
+              <td class="num">20,000</td>
+            </tr>
+            <tr>
+              <td><code>bottom</code></td>
+              <td><code>r × s = (B − A) × (D − C)</code></td>
+              <td class="num">40,000</td>
+            </tr>
+            <tr>
+              <td><code>t</code></td>
+              <td>Fraction along the ray</td>
+              <td class="num">0.6</td>
+            </tr>
+            <tr>
+              <td><code>u</code></td>
+              <td>Fraction along the border</td>
+              <td class="num">0.5</td>
+            </tr>
+            <tr>
+              <td><code>offset</code></td>
+              <td>The same number as <code>t</code></td>
+              <td class="num">0.6</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p>The expanded terms are the cross products with the vectors substituted. For example, <code>bottom</code> is:</p>
+
+      <div class="formula-block">
+        <span class="formula-label">Expand the determinant</span>
+        r × s = (B − A) × (D − C)<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;= (B.x − A.x)(D.y − C.y) − (B.y − A.y)(D.x − C.x)
+      </div>
+
+      <p>The code writes the same two products in a different order: <code>(D.y−C.y)(B.x−A.x) − (D.x−C.x)(B.y−A.y)</code>. Multiplication commutes, so the value is identical. You can do the same expansion for <code>tTop</code> and <code>uTop</code>; the signs work out because both terms flip together.</p>
+
+      <aside class="callout callout--note">
+        <p class="callout-title">Why <code>bottom != 0</code> is enough</p>
+        <p>Exact parallel lines produce exactly zero in this geometry, and the function returns <code>null</code>. Nearly parallel lines produce a very large <code>t</code> or <code>u</code>, which the bounds check rejects. The code does not need a separate “nearly parallel” branch.</p>
+      </aside>
+
+      <aside class="callout callout--gold">
+        <p class="callout-title">Inclusive bounds matter at corners</p>
+        <p><code>t &gt;= 0</code>, not <code>t &gt; 0</code>. A hit exactly at a segment endpoint counts. At a polygon corner, two edges meet at the same point; both can report the same hit. The sensor still works; it just sees the corner twice.</p>
+      </aside>
+
+      <aside class="callout callout--note">
+        <p class="callout-title">A float comparison to keep in mind</p>
+        <p>The lecture uses <code>e.offset == minOffset</code> when it picks the closest hit. It works because the values come from the same computation, but floating-point equality is fragile in general. <code>&lt;=</code> or a small tolerance is safer if you rewrite this code.</p>
+      </aside>
+    </section>
+
+    <section aria-labelledby="section-reading">
+      <h2 id="section-reading"><span class="sec-num">Section 06</span>Keep the closest reading</h2>
+
+      <p>One ray can cross several borders. The sensor only cares about the first one, because everything behind it is hidden. The reading is the touch with the smallest <code>offset</code>:</p>
+
+      <figure class="code-figure">
+        <pre><code><span class="comment">// sensor.js — the road-border part of getReading()</span>
+#getReading(ray, roadBorders) {
+    let touches = [];
+
+    for (let i = 0; i &lt; roadBorders.length; i++) {
+        const touch = getIntersection(
+            ray[0], ray[1],
+            roadBorders[i][0], roadBorders[i][1]
+        );
+        if (touch) touches.push(touch);
+    }
+
+    if (touches.length == 0) return null;
+
+<span class="hl">    const offsets = touches.map(e =&gt; e.offset);
+    const minOffset = Math.min(...offsets);
+    return touches.find(e =&gt; e.offset == minOffset);</span>
+}</code></pre>
+        <figcaption><strong>Listing 5.</strong> Collect every border hit. If there are none, return <code>null</code>. Otherwise return the touch with the smallest offset. The lecture's full method also takes <code>traffic</code>; Listing 6 adds that loop.</figcaption>
+      </figure>
+
+      <p>Why is the smallest <code>offset</code> the closest object? Every ray in this sensor has the same <code>rayLength</code>. Distance along a ray is <code>offset × rayLength</code>, so the smallest offset is the smallest distance. If you ever give rays different lengths, compare <code>offset × length</code> instead.</p>
+
+      <p>The drawing code uses the reading to split the ray in two. The part from the car to the hit is drawn in the sensor colour; the part beyond the hit is drawn in a second colour. That second colour is the part the sensor cannot see. The <a href="#section-lab">fan lab</a> uses the same convention: solid to the hit, dashed beyond.</p>
+
+      <h3>The same test handles traffic</h3>
+
+      <p>A future traffic car is a polygon. A polygon is a closed list of points; each pair of consecutive points is an edge, and every edge is a segment. The sensor loops over the edges and calls the same <code>getIntersection</code>:</p>
+
+      <figure class="code-figure">
+        <pre><code><span class="comment">// sensor.js — getReading(), traffic part</span>
+for (let i = 0; i &lt; traffic.length; i++) {
+    const poly = traffic[i].polygon;
+    for (let j = 0; j &lt; poly.length; j++) {
+        const value = getIntersection(
+            ray[0], ray[1],
+            poly[j], poly[(j + 1) % poly.length]
+        );
+        if (value) touches.push(value);
+    }
+}</code></pre>
+        <figcaption><strong>Listing 6.</strong> The modulo wraps the last point back to the first, closing the polygon. The intersection test does not know or care whether the segment is a road border or a car door.</figcaption>
+      </figure>
+
+      <p>The closest hit across <em>all</em> the segments wins. A car in front of the border occludes the border. A border in front of the car occludes the car. The sensor does not need a special case for each object type; it only needs the list of segments.</p>
+
+      <aside class="callout callout--gold">
+        <p class="callout-title">The sensor does not know what it hit</p>
+        <p><code>getIntersection</code> returns a point and an offset, not a label. If the car's brain needs to distinguish a border from traffic, the caller can tag each touch with its source before comparing offsets. That is an extension, not a change to the math.</p>
+      </aside>
+
+      <aside class="callout callout--note">
+        <p class="callout-title">Collision detection is the same idea</p>
+        <p>To test whether two cars collide, test their polygon edges against each other. Same segments, same function, different caller. Once you can intersect a ray with a border, you can intersect any two polygons.</p>
+      </aside>
+    </section>
+
+    <section aria-labelledby="section-lab">
+      <h2 id="section-lab"><span class="sec-num">Section 07</span>Lab: cast the fan, then inspect one hit</h2>
+
+      <p>Predict before you move a slider. The first lab casts the whole fan. The second lab freezes one ray and one segment so you can watch <code>t</code> and <code>u</code> change.</p>
+
+      <figure class="figure-wide">
+        <div class="lab" data-fan-lab>
+          <div class="lab-head">
+            <div>
+              <p class="eyebrow">Interactive · Fan lab</p>
+              <h3>Three rays, two borders, one parked car</h3>
+            </div>
+          </div>
+
+          <div class="lab-grid">
+            <div class="lab-panel lab-panel--wide">
+              <svg class="lab-svg" viewBox="0 0 400 330" role="img" aria-labelledby="fan-lab-title">
+                <title id="fan-lab-title">A top-down road with a car casting a fan of rays. The rays stop at the nearest road border or parked car.</title>
+                <defs>
+                  <pattern id="fan-lab-grid" width="20" height="20" patternUnits="userSpaceOnUse">
+                    <path d="M 20 0 L 0 0 0 20" fill="none" stroke="var(--rule)" stroke-width="1"></path>
+                  </pattern>
+                  <clipPath id="fan-lab-clip">
+                    <rect x="8" y="8" width="384" height="314" rx="4"></rect>
+                  </clipPath>
+                </defs>
+
+                <rect x="8" y="8" width="384" height="314" rx="4" fill="url(#fan-lab-grid)" opacity="0.45"></rect>
+                <text x="24" y="27" class="axis-label">road plan</text>
+
+                <g clip-path="url(#fan-lab-clip)">
+                  <rect class="road-surface" x="20" y="20" width="360" height="290"></rect>
+                  <line class="road-border" x1="20" y1="20" x2="20" y2="310"></line>
+                  <line class="road-border" x1="380" y1="20" x2="380" y2="310"></line>
+
+                  <g data-fan-obstacle-group>
+                    <rect class="obstacle-body" x="270" y="80" width="80" height="50" rx="6"></rect>
+                    <line class="obstacle-edge" x1="270" y1="80" x2="350" y2="80"></line>
+                    <line class="obstacle-edge" x1="350" y1="80" x2="350" y2="130"></line>
+                    <line class="obstacle-edge" x1="350" y1="130" x2="270" y2="130"></line>
+                    <line class="obstacle-edge" x1="270" y1="130" x2="270" y2="80"></line>
+                    <text x="310" y="70" class="lane-label" text-anchor="middle">parked car</text>
+                  </g>
+
+                  <g data-fan-rays></g>
+                  <g data-fan-hits></g>
+
+                  <g data-fan-car transform="translate(320 270)">
+                    <rect class="sensor-car" x="-13" y="-20" width="26" height="40" rx="5"></rect>
+                    <line class="sensor-car-nose" x1="0" y1="-20" x2="0" y2="-28"></line>
+                  </g>
+                </g>
+
+                <text x="24" y="324" class="diagram-label">solid = nearest hit · dashed = blocked or out of range</text>
+              </svg>
+            </div>
+          </div>
+
+          <div class="lab-controls">
+            <label for="fan-car-x">
+              <span>Car x <output data-fan-car-x-out for="fan-car-x">320</output></span>
+              <input id="fan-car-x" type="range" min="60" max="360" step="5" value="320" data-fan-car-x>
+            </label>
+            <label for="fan-car-angle">
+              <span>Car angle <output data-fan-car-angle-out for="fan-car-angle">0°</output></span>
+              <input id="fan-car-angle" type="range" min="-45" max="45" step="5" value="0" data-fan-car-angle>
+            </label>
+            <label for="fan-count">
+              <span>Rays <output data-fan-count-out for="fan-count">3</output></span>
+              <input id="fan-count" type="range" min="1" max="7" step="1" value="3" data-fan-count>
+            </label>
+            <label for="fan-spread">
+              <span>Spread <output data-fan-spread-out for="fan-spread">45°</output></span>
+              <input id="fan-spread" type="range" min="0" max="120" step="5" value="45" data-fan-spread>
+            </label>
+            <label for="fan-length">
+              <span>Ray length <output data-fan-length-out for="fan-length">180</output></span>
+              <input id="fan-length" type="range" min="40" max="260" step="10" value="180" data-fan-length>
+            </label>
+            <label for="fan-obstacle">
+              <span>Parked car <output data-fan-obstacle-out for="fan-obstacle">on</output></span>
+              <input id="fan-obstacle" type="checkbox" checked data-fan-obstacle>
+            </label>
+            <div class="lab-buttons">
+              <button type="button" class="btn" data-fan-reset>Reset</button>
+            </div>
+          </div>
+
+          <div class="lab-readout">
+            <div><span>ray offsets</span><code data-fan-angles>+22.5°, 0°, −22.5°</code></div>
+            <div><span>hits</span><code data-fan-hits-out>2 of 3</code></div>
+            <div><span>nearest</span><code data-fan-nearest>140 · ray 2</code></div>
+            <div><span>range</span><code data-fan-range>180</code></div>
+            <p class="formula" data-fan-formula></p>
+          </div>
+        </div>
+        <figcaption><strong>Figure 2.</strong> The fan lab uses a longer ray (180) than the repo (100) so that the default view has something to hit. The car is at the right lane's centre. The solid part of each ray ends at the nearest hit; the dashed part is blocked or out of range.</figcaption>
+      </figure>
+
+      <p>Try these in order. Say the answer before moving the control.</p>
+
+      <ol>
+        <li><strong>The default fan.</strong> With the car at <code>x = 320</code>, 3 rays, 45° spread, and length 180, which rays hit? Predict: the centre ray hits the parked car, the right ray hits the right border, the left ray misses. The readout should say <code>2 of 3</code>.</li>
+        <li><strong>Move the car to x = 200.</strong> The border hits disappear. The rightmost ray is only 22.5° away from straight up, so over 180 units it moves sideways by <code>180 · sin 22.5° ≈ 68.9</code>. It reaches <code>268.9</code>, still 111 units short of the right border. A long ray is not enough if it points the wrong way.</li>
+        <li><strong>Set the ray length to 100.</strong> The centre ray now ends at <code>y = 170</code>, below the parked car's bottom edge at <code>y = 130</code>. It misses. Range matters too.</li>
+        <li><strong>Set the ray count to 1.</strong> The single ray is the centre ray. Changing the spread no longer changes its angle, because <code>rayCount === 1</code> selects the midpoint of the interval. This is the guard from Section 02.</li>
+        <li><strong>Set the car angle to 20°.</strong> The whole fan rotates left. The offsets stay the same; every absolute ray angle gains 20°. Watch which hits appear and disappear.</li>
+      </ol>
+
+      <figure class="figure-wide">
+        <div class="lab" data-hit-lab>
+          <div class="lab-head">
+            <div>
+              <p class="eyebrow">Interactive · Intersection inspector</p>
+              <h3>One ray, one segment, every fraction</h3>
+            </div>
+          </div>
+
+          <div class="lab-grid">
+            <div class="lab-panel">
+              <svg class="lab-svg" viewBox="0 0 480 330" role="img" aria-labelledby="hit-lab-title">
+                <title id="hit-lab-title">A ray from A to B and a movable border segment from C to D. The intersection point is shown with the fractions t and u.</title>
+                <defs>
+                  <pattern id="hit-lab-grid" width="20" height="20" patternUnits="userSpaceOnUse">
+                    <path d="M 20 0 L 0 0 0 20" fill="none" stroke="var(--rule)" stroke-width="1"></path>
+                  </pattern>
+                  <clipPath id="hit-lab-clip">
+                    <rect x="8" y="8" width="464" height="314" rx="4"></rect>
+                  </clipPath>
+                </defs>
+
+                <rect x="8" y="8" width="464" height="314" rx="4" fill="url(#hit-lab-grid)" opacity="0.45"></rect>
+                <text x="24" y="27" class="axis-label">one ray · one segment</text>
+
+                <g clip-path="url(#hit-lab-clip)">
+                  <line data-hit-segment class="segment-line" x1="380" y1="0" x2="380" y2="330"></line>
+                  <line data-hit-tail class="ray-line--blocked" x1="410" y1="94" x2="410" y2="94" style="display: none;"></line>
+                  <line data-hit-ray class="ray-line" x1="320" y1="250" x2="410" y2="94"></line>
+
+                  <circle data-hit-start class="ray-start" cx="320" cy="250" r="4"></circle>
+                  <circle data-hit-end class="ray-end" cx="410" cy="94" r="4"></circle>
+                  <circle data-hit-point class="intersection-point" cx="380" cy="146" r="5"></circle>
+                  <circle data-hit-ghost class="intersection-ghost" cx="380" cy="146" r="5" style="display: none;"></circle>
+
+                  <g>
+                    <text data-hit-label-a class="ray-label" x="312" y="264" text-anchor="end">A</text>
+                    <text data-hit-label-b class="ray-label" x="418" y="88" text-anchor="start">B</text>
+                    <text data-hit-label-c class="ray-label" x="372" y="14" text-anchor="end">C</text>
+                    <text data-hit-label-d class="ray-label" x="372" y="294" text-anchor="end">D</text>
+                    <text data-hit-label-p class="ray-label ray-label--hit" x="388" y="138" text-anchor="start">P</text>
+                    <text data-hit-label-t class="ray-label" x="235" y="190" text-anchor="end">t = 0.667</text>
+                    <text data-hit-label-u class="ray-label" x="368" y="88" text-anchor="end">u = 0.443</text>
+                    <text data-hit-ghost-label class="ray-label" x="388" y="138" text-anchor="start" style="display: none;">lines meet here</text>
+                  </g>
+                </g>
+
+                <text x="464" y="324" class="diagram-label" text-anchor="end">move the sliders · the math follows</text>
+              </svg>
+            </div>
+
+            <div class="lab-panel lab-panel--pad">
+              <div class="math-panel">
+                <p class="math-title">The numbers behind the picture</p>
+                <div class="math-row"><span>r = B − A</span><code data-hit-r>(90, −155.9)</code></div>
+                <div class="math-row"><span>s = D − C</span><code data-hit-s>(0, 330)</code></div>
+                <div class="math-row"><span>w = C − A</span><code data-hit-w>(60, −250)</code></div>
+                <div class="math-row"><span>tTop = w × s</span><code data-hit-ttop>19,800</code></div>
+                <div class="math-row"><span>uTop = w × r</span><code data-hit-utop>13,147</code></div>
+                <div class="math-row"><span>bottom = r × s</span><code data-hit-bottom>29,700</code></div>
+                <div class="math-row"><span>t = tTop / bottom</span><code data-hit-t>0.667</code></div>
+                <div class="math-row"><span>u = uTop / bottom</span><code data-hit-u>0.443</code></div>
+                <div class="math-row"><span>P</span><code data-hit-point-out>(380, 146.1)</code></div>
+                <p class="math-status" data-hit-status aria-live="polite">Hit — both fractions are inside [0, 1].</p>
+                <p class="math-formula" data-hit-formula>t = 19,800 / 29,700 = 0.667 · u = 13,147 / 29,700 = 0.443</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="lab-controls">
+            <label for="hit-car-x">
+              <span>Ray start x <output data-hit-car-x-out for="hit-car-x">320</output></span>
+              <input id="hit-car-x" type="range" min="60" max="360" step="5" value="320" data-hit-car-x>
+            </label>
+            <label for="hit-ray-angle">
+              <span>Ray angle <output data-hit-ray-angle-out for="hit-ray-angle">−30°</output></span>
+              <input id="hit-ray-angle" type="range" min="-75" max="75" step="5" value="-30" data-hit-ray-angle>
+            </label>
+            <label for="hit-ray-length">
+              <span>Ray length <output data-hit-ray-length-out for="hit-ray-length">180</output></span>
+              <input id="hit-ray-length" type="range" min="40" max="220" step="10" value="180" data-hit-ray-length>
+            </label>
+            <label for="hit-border-x">
+              <span>Border x <output data-hit-border-x-out for="hit-border-x">380</output></span>
+              <input id="hit-border-x" type="range" min="240" max="430" step="5" value="380" data-hit-border-x>
+            </label>
+            <label for="hit-border-tilt">
+              <span>Border tilt <output data-hit-border-tilt-out for="hit-border-tilt">0°</output></span>
+              <input id="hit-border-tilt" type="range" min="-45" max="45" step="5" value="0" data-hit-border-tilt>
+            </label>
+            <label for="hit-border-y">
+              <span>Border centre y <output data-hit-border-y-out for="hit-border-y">165</output></span>
+              <input id="hit-border-y" type="range" min="60" max="260" step="5" value="165" data-hit-border-y>
+            </label>
+            <label for="hit-border-len">
+              <span>Border length <output data-hit-border-len-out for="hit-border-len">330</output></span>
+              <input id="hit-border-len" type="range" min="40" max="330" step="10" value="330" data-hit-border-len>
+            </label>
+            <div class="lab-buttons">
+              <button type="button" class="btn" data-hit-preset="hit">Hit</button>
+              <button type="button" class="btn" data-hit-preset="beyond">Beyond ray</button>
+              <button type="button" class="btn" data-hit-preset="behind">Behind start</button>
+              <button type="button" class="btn" data-hit-preset="outside">Outside border</button>
+              <button type="button" class="btn" data-hit-preset="parallel">Parallel</button>
+              <button type="button" class="btn btn-ghost" data-hit-reset>Reset</button>
+            </div>
+          </div>
+        </div>
+        <figcaption><strong>Figure 3.</strong> The inspector uses the compact cross-product form from Section 04, so every number in the panel maps directly to the lesson. The hollow dot is the crossing of the infinite lines when the finite segments do not meet.</figcaption>
+      </figure>
+
+      <p>Now inspect one hit at a time. The default is a hit: <code>t ≈ 0.667</code>, <code>u ≈ 0.443</code>.</p>
+
+      <ol>
+        <li><strong>Verify the default.</strong> The ray starts at <code>(320, 250)</code>, runs at <code>−30°</code>, and is 180 long. The border is the vertical segment at <code>x = 380</code>. The hit is <code>(380, 146.1)</code>. The ray's horizontal component is <code>180 · sin 30° = 90</code>, so reaching 60 units sideways takes <code>t = 60/90 = 0.667</code>. The border's <code>u</code> is <code>146.1/330 = 0.443</code>.</li>
+        <li><strong>Press “Beyond ray.”</strong> The lines still cross, but <code>t &gt; 1</code>. The crossing is past the ray's end. The status says no hit, and the hollow dot shows where the infinite lines meet.</li>
+        <li><strong>Press “Behind start.”</strong> The lines cross behind the car, so <code>t &lt; 0</code>. A ray only goes forward from its start.</li>
+        <li><strong>Press “Outside border.”</strong> The crossing is below the border's bottom endpoint, so <code>u &gt; 1</code>. The border is finite; the crossing is not on it.</li>
+        <li><strong>Press “Parallel.”</strong> <code>bottom = 0</code>. The two directions are parallel, so there is no unique crossing. The panel shows <code>—</code> for <code>t</code> and <code>u</code>.</li>
+        <li><strong>Tilt the border.</strong> Watch <code>t</code> and <code>u</code> change together. They are coupled by the same two equations; you cannot change one independently unless you also move the ray or the segment.</li>
+      </ol>
+    </section>
+
+    <section aria-labelledby="section-predict">
+      <h2 id="section-predict"><span class="sec-num">Section 08</span>Predict, then inspect</h2>
+
+      <p>Open <code>index.html</code> with the developer console open. The sensor is not wired into <code>main.js</code> yet, so create one in the console. Make the two edits from Section 02 first; otherwise the first check will fail for the reason the lesson just described.</p>
+
+      <ol>
+        <li><strong>Check that the fan rotates.</strong> Create a sensor, point the car straight up, and record the leftmost ray's endpoint. Then turn the car 45° left and record it again. The endpoint should move left. If it does not, the <code>+ this.car.angle</code> term is still missing.</li>
+        <li><strong>Test the intersection function directly.</strong> After you add <code>getIntersection</code> to <code>util.js</code>, call it with the worked example. The result should be <code>{x: 380, y: 200, offset: 0.6}</code>.</li>
+        <li><strong>Test a miss and a parallel pair.</strong> Shorten the ray so it stops before the border: the result should be <code>null</code>, even though the infinite lines still cross. Then make the ray and the border horizontal: <code>bottom = 0</code>, so the result is also <code>null</code>.</li>
+      </ol>
+
+      <figure class="code-figure">
+        <pre><code><span class="comment">// browser console — after adding getIntersection()</span>
+window.sensor = new Sensor(car);
+
+car.angle = 0;
+sensor.update();
+const straight = sensor.rays[0][1];
+
+car.angle = Math.PI / 4;
+sensor.update();
+const turned = sensor.rays[0][1];
+
+<span class="comment">// worked example: hit at (380, 200), offset 0.6</span>
+getIntersection(
+    {x: 320, y: 200}, {x: 420, y: 200},
+    {x: 380, y: 0},   {x: 380, y: 400}
+);
+
+<span class="comment">// ray stops at x = 370: the lines cross, but t &gt; 1</span>
+getIntersection(
+    {x: 320, y: 200}, {x: 370, y: 200},
+    {x: 380, y: 0},   {x: 380, y: 400}
+);
+
+<span class="comment">// parallel: bottom = 0</span>
+getIntersection(
+    {x: 320, y: 200}, {x: 420, y: 200},
+    {x: 300, y: 150}, {x: 400, y: 150}
+);</code></pre>
+        <figcaption><strong>Listing 7.</strong> The first block checks the fan's rotation. The next three check the three outcomes of the intersection test: a hit, a finite-segment miss, and a parallel miss.</figcaption>
+      </figure>
+
+      <aside class="callout callout--win">
+        <p class="callout-title">Teach it back</p>
+        <p>Keep the worked example's ray start <code>A = (320, 200)</code>, but shorten the ray from 100 to 50 units, so it ends at <code>B = (370, 200)</code>. The border is still <code>C = (380, 0)</code> to <code>D = (380, 400)</code>. Without running the code, compute <code>r</code>, <code>s</code>, <code>w</code>, <code>tTop</code>, <code>uTop</code>, <code>bottom</code>, <code>t</code>, and <code>u</code>. Is it a hit? Which bound rejects it? Then verify your arithmetic with the formulas in Section 04.</p>
+      </aside>
+    </section>
+
+    <section aria-labelledby="section-quiz">
+      <h2 id="section-quiz"><span class="sec-num">Section 09</span>Check your understanding</h2>
+
+      <p>Answer from memory. The feedback appears immediately; the explanation appears after you choose.</p>
+
+      <div class="quiz" data-quiz data-correct-text="Correct — that is the right answer." data-wrong-text="Not quite — re-read the section and try again.">
+        <div class="quiz-head">
+          <div>
+            <h3>Six quick sensor checks</h3>
+            <p>All questions use the formulas from this lesson.</p>
+          </div>
+          <button type="button" class="btn btn-ghost" data-quiz-reset>Reset answers</button>
+        </div>
+
+        <div class="quiz-question" data-question>
+          <p class="quiz-prompt"><span class="quiz-num">Q1</span> Which vector points along a ray at angle θ?</p>
+          <div class="quiz-options" data-options>
+            <button type="button" class="quiz-option" data-option data-correct="true">(−sin θ, −cos θ)</button>
+            <button type="button" class="quiz-option" data-option data-correct="false">(+sin θ, +cos θ)</button>
+            <button type="button" class="quiz-option" data-option data-correct="false">(−cos θ, +sin θ)</button>
+            <button type="button" class="quiz-option" data-option data-correct="false">(+cos θ, −sin θ)</button>
+          </div>
+          <p class="quiz-feedback" data-feedback aria-live="polite"></p>
+          <p class="quiz-explain" data-explanation hidden>The car moves by <code>x -= sin(angle) * speed</code> and <code>y -= cos(angle) * speed</code>. The unit direction is therefore <code>(−sin θ, −cos θ)</code>. The other options swap the components or the signs.</p>
+        </div>
+
+        <div class="quiz-question" data-question>
+          <p class="quiz-prompt"><span class="quiz-num">Q2</span> In <code>P(t) = A + t(B − A)</code>, what does <code>t</code> measure?</p>
+          <div class="quiz-options" data-options>
+            <button type="button" class="quiz-option" data-option data-correct="true">The fraction along the segment</button>
+            <button type="button" class="quiz-option" data-option data-correct="false">The length of the segment</button>
+            <button type="button" class="quiz-option" data-option data-correct="false">The angle of the segment</button>
+            <button type="button" class="quiz-option" data-option data-correct="false">The midpoint of the segment</button>
+          </div>
+          <p class="quiz-feedback" data-feedback aria-live="polite"></p>
+          <p class="quiz-explain" data-explanation hidden><code>t = 0</code> gives <code>A</code>; <code>t = 1</code> gives <code>B</code>. The distance from <code>A</code> is <code>t × |B − A|</code>. It is a fraction, not a fixed length.</p>
+        </div>
+
+        <div class="quiz-question" data-question>
+          <p class="quiz-prompt"><span class="quiz-num">Q3</span> For a hit on both segments, <code>t</code> and <code>u</code> must be…</p>
+          <div class="quiz-options" data-options>
+            <button type="button" class="quiz-option" data-option data-correct="true">Between zero and one</button>
+            <button type="button" class="quiz-option" data-option data-correct="false">Always greater than one</button>
+            <button type="button" class="quiz-option" data-option data-correct="false">Always less than zero</button>
+            <button type="button" class="quiz-option" data-option data-correct="false">Exactly zero or one</button>
+          </div>
+          <p class="quiz-feedback" data-feedback aria-live="polite"></p>
+          <p class="quiz-explain" data-explanation hidden>Both bounds are inclusive: <code>0 ≤ t ≤ 1</code> and <code>0 ≤ u ≤ 1</code>. A hit at an endpoint is still a hit; that is why corners work.</p>
+        </div>
+
+        <div class="quiz-question" data-question>
+          <p class="quiz-prompt"><span class="quiz-num">Q4</span> What does <code>bottom = 0</code> mean?</p>
+          <div class="quiz-options" data-options>
+            <button type="button" class="quiz-option" data-option data-correct="true">The two segments are parallel</button>
+            <button type="button" class="quiz-option" data-option data-correct="false">The two segments are crossing</button>
+            <button type="button" class="quiz-option" data-option data-correct="false">The ray is far too short</button>
+            <button type="button" class="quiz-option" data-option data-correct="false">The border is too long</button>
+          </div>
+          <p class="quiz-feedback" data-feedback aria-live="polite"></p>
+          <p class="quiz-explain" data-explanation hidden><code>bottom = r × s</code>. A zero determinant means the two direction vectors are parallel, so the lines never meet at a single point. The function returns <code>null</code>.</p>
+        </div>
+
+        <div class="quiz-question" data-question>
+          <p class="quiz-prompt"><span class="quiz-num">Q5</span> In the worked example, <code>t = 0.6</code> and <code>u = 0.5</code>. Where is the hit?</p>
+          <div class="quiz-options" data-options>
+            <button type="button" class="quiz-option" data-option data-correct="true">(380, 200)</button>
+            <button type="button" class="quiz-option" data-option data-correct="false">(320, 200)</button>
+            <button type="button" class="quiz-option" data-option data-correct="false">(420, 200)</button>
+            <button type="button" class="quiz-option" data-option data-correct="false">(380, 0)</button>
+          </div>
+          <p class="quiz-feedback" data-feedback aria-live="polite"></p>
+          <p class="quiz-explain" data-explanation hidden><code>lerp((320,200), (420,200), 0.6) = (380,200)</code>. The same point is <code>lerp((380,0), (380,400), 0.5)</code>.</p>
+        </div>
+
+        <div class="quiz-question" data-question>
+          <p class="quiz-prompt"><span class="quiz-num">Q6</span> Why does the sensor keep the smallest <code>offset</code>?</p>
+          <div class="quiz-options" data-options>
+            <button type="button" class="quiz-option" data-option data-correct="true">It is the closest object</button>
+            <button type="button" class="quiz-option" data-option data-correct="false">It is the farthest object</button>
+            <button type="button" class="quiz-option" data-option data-correct="false">It is the longest ray</button>
+            <button type="button" class="quiz-option" data-option data-correct="false">It is the widest fan</button>
+          </div>
+          <p class="quiz-feedback" data-feedback aria-live="polite"></p>
+          <p class="quiz-explain" data-explanation hidden>All rays share the same length, so distance = <code>offset × rayLength</code>. The smallest offset is the smallest distance. Everything behind that hit is occluded.</p>
+        </div>
+      </div>
+    </section>
+
+    <section aria-labelledby="section-source">
+      <h2 id="section-source"><span class="sec-num">Section 10</span>Primary sources</h2>
+
+      <p>Watch the lecture with the code open. The chapters are short, and the pinned comment contains the exact <code>getIntersection</code> function.</p>
+
+      <div class="source-card">
+        <div class="source-mark" aria-hidden="true">1</div>
+        <div>
+          <h3><a href="https://youtu.be/2AKMSO2Gocs" target="_blank" rel="noreferrer">Radu Mariescu-Istodor — Self-driving car, Lecture 3: Artificial sensors</a></h3>
+          <p>The implementation this branch follows. <em>The Sensor class</em> at 1:13, <em>Casting the rays</em> at 2:58, <em>Drawing the rays</em> at 5:40, <em>Detecting the road borders</em> at 11:19, <em>Drawing the sensor readings</em> at 17:57, and <em>Get intersection function</em> at 19:43. The pinned comment has the exact function for comparison.</p>
+          <p class="source-meta">Applied source · free video · about 25 minutes</p>
+        </div>
+      </div>
+
+      <div class="source-card">
+        <div class="source-mark" aria-hidden="true">2</div>
+        <div>
+          <h3><a href="https://www.youtube.com/watch?v=fHOLQJo0FjQ" target="_blank" rel="noreferrer">Radu Mariescu-Istodor — Segment intersection formula explained</a></h3>
+          <p>The mathematical bridge from Lesson 03's <code>lerp</code> to this lesson's intersection test. It covers the midpoint and extrapolation cases, which are exactly the <code>t &lt; 0</code> and <code>t &gt; 1</code> rejections in the lab.</p>
+          <p class="source-meta">Math companion · free video · about 10 minutes</p>
+        </div>
+      </div>
+
+      <div class="source-card">
+        <div class="source-mark" aria-hidden="true">3</div>
+        <div>
+          <h3><a href="https://www.youtube.com/watch?v=Ip3X9LOh2dk" target="_blank" rel="noreferrer">3Blue1Brown — The determinant</a></h3>
+          <p>Why a determinant is an area, and why an area of zero means the vectors are dependent. Watch the first half for the 2D picture; the 3D part is optional for this project.</p>
+          <p class="source-meta">Intuition source · free video · about 10 minutes</p>
+        </div>
+      </div>
+
+      <p>When you finish, explain why <code>bottom = 0</code> means no unique hit, and why both <code>t</code> and <code>u</code> must be inside <code>[0, 1]</code>. Then add <code>getIntersection</code> to <code>util.js</code>, and <code>#castRays</code> and <code>#getReading</code> to <code>sensor.js</code>. The code should read like the derivation, not like a magic spell.</p>
+    </section>
+
+    <aside class="teacher">
+      <p class="eyebrow">Your teacher is here</p>
+      <p>If a ray misses when it should hit, bring the four points <code>A, B, C, D</code> and the three numbers <code>tTop</code>, <code>uTop</code>, <code>bottom</code>. We will check which bound rejected it, or whether the lines are parallel.</p>
+    </aside>
+
+    <footer class="lesson-footer">
+      <nav class="footer-nav" aria-label="Lesson navigation">
+        <span>Reference: <a href="../reference/ray-intersection.html">Ray intersection</a> · <a href="../reference/road-geometry.html">Road geometry</a> · <a href="../reference/trig-glossary.html">Glossary</a></span>
+        <span>Previous: <a href="0003-road-geometry.html">Lanes are fractions of the road</a> · Next: traffic polygons</span>
+      </nav>
+      <p>Lesson 04 · <a href="../MISSION.md">Mission: Trigonometry for a Self-Driving Car</a> · 21 November 2026</p>
+    </footer>
+  </article>
+
+  <script src="../assets/quiz.js"></script>
+  <script src="../assets/sensor-lab.js"></script>
+</body>
+</html>
