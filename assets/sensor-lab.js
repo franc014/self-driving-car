@@ -83,6 +83,35 @@
     return Number.isFinite(value) ? value : fallback;
   };
 
+  const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+
+  const svgPoint = (svg, event) => {
+    const point = typeof svg.createSVGPoint === "function"
+      ? svg.createSVGPoint()
+      : new DOMPoint();
+    point.x = event.clientX;
+    point.y = event.clientY;
+    const matrix = svg.getScreenCTM();
+    return matrix ? point.matrixTransform(matrix.inverse()) : { x: 0, y: 0 };
+  };
+
+  const enableDrag = (handle, svg, onMove) => {
+    if (!handle || !svg) return;
+    handle.addEventListener("pointerdown", (event) => {
+      event.preventDefault();
+      if (svg.setPointerCapture) svg.setPointerCapture(event.pointerId);
+      const move = (moveEvent) => onMove(svgPoint(svg, moveEvent));
+      const stop = () => {
+        svg.removeEventListener("pointermove", move);
+        svg.removeEventListener("pointerup", stop);
+        svg.removeEventListener("pointercancel", stop);
+      };
+      svg.addEventListener("pointermove", move);
+      svg.addEventListener("pointerup", stop);
+      svg.addEventListener("pointercancel", stop);
+    });
+  };
+
   /* -----------------------------------------------------------------------
      Fan lab
      ----------------------------------------------------------------------- */
@@ -92,9 +121,9 @@
     const state = {
       carX: 320,
       carAngle: 0,
-      count: 3,
-      spread: 45,
-      length: 180,
+      count: 8,
+      spread: 90,
+      length: 200,
       obstacle: true,
     };
 
@@ -293,15 +322,23 @@
       });
     });
 
+    const fanSvg = fanLab.querySelector("svg");
+    enableDrag(car, fanSvg, (point) => {
+      const min = numberValue(inputs.carX && inputs.carX.min, 60);
+      const max = numberValue(inputs.carX && inputs.carX.max, 360);
+      state.carX = clamp(Math.round(point.x), min, max);
+      render();
+    });
+
     const reset = fanLab.querySelector("[data-fan-reset]");
     if (reset) {
       reset.addEventListener("click", () => {
         Object.assign(state, {
           carX: 320,
           carAngle: 0,
-          count: 3,
-          spread: 45,
-          length: 180,
+          count: 8,
+          spread: 90,
+          length: 200,
           obstacle: true,
         });
         render();
@@ -577,6 +614,55 @@
         render();
       });
     });
+
+    const hitSvg = hitLab.querySelector("svg");
+    const clampInput = (input, value) => clamp(
+      Math.round(value),
+      numberValue(input && input.min, -Infinity),
+      numberValue(input && input.max, Infinity)
+    );
+
+    enableDrag(svg.start, hitSvg, (point) => {
+      state.carX = clampInput(inputs.carX, point.x);
+      render();
+    });
+
+    enableDrag(svg.end, hitSvg, (point) => {
+      const dx = point.x - state.carX;
+      const dy = point.y - 250;
+      state.rayLength = clampInput(inputs.rayLength, Math.hypot(dx, dy));
+      state.rayAngle = clampInput(
+        inputs.rayAngle,
+        (Math.atan2(-dx, -dy) * 180) / Math.PI
+      );
+      render();
+    });
+
+    if (svg.segment && hitSvg) {
+      svg.segment.addEventListener("pointerdown", (event) => {
+        event.preventDefault();
+        if (hitSvg.setPointerCapture) hitSvg.setPointerCapture(event.pointerId);
+        const point = svgPoint(hitSvg, event);
+        const offset = {
+          x: point.x - state.borderX,
+          y: point.y - state.borderY,
+        };
+        const move = (moveEvent) => {
+          const next = svgPoint(hitSvg, moveEvent);
+          state.borderX = clampInput(inputs.borderX, next.x - offset.x);
+          state.borderY = clampInput(inputs.borderY, next.y - offset.y);
+          render();
+        };
+        const stop = () => {
+          hitSvg.removeEventListener("pointermove", move);
+          hitSvg.removeEventListener("pointerup", stop);
+          hitSvg.removeEventListener("pointercancel", stop);
+        };
+        hitSvg.addEventListener("pointermove", move);
+        hitSvg.addEventListener("pointerup", stop);
+        hitSvg.addEventListener("pointercancel", stop);
+      });
+    }
 
     const presets = {
       hit: { ...DEFAULTS },

@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Lesson 03 — Lanes are fractions of the road</title>
-  <meta name="description" content="Derive road left and right from its center and width, place every lane divider and lane center with linear interpolation, and see how borders become segments for the sensors.">
+  <meta name="description" content="Derive the road's left and right edges from its center and width, place every divider and lane center with linear interpolation, and see how the borders become segments the sensors can use.">
   <link rel="stylesheet" href="../assets/lesson.css">
 </head>
 <body>
@@ -12,7 +12,7 @@
     <header class="lesson-header">
       <p class="kicker">Lesson 03 · Road &amp; lanes</p>
       <h1>Lanes are fractions of the road</h1>
-      <p class="dek">Start with the road width. Divide it into equal lanes. Then calculate where each lane starts and where its center is. The <code>lerp</code> function helps us find these positions.</p>
+      <p class="dek">A road is one interval. Divide it into equal lanes, and every divider and lane center becomes a fraction of the way across — the same fraction <code>lerp</code> computes.</p>
 
       <dl class="meta">
         <div>
@@ -36,16 +36,16 @@
 
     <aside class="mission">
       <p class="eyebrow">Why this matters</p>
-      <p><strong>Where do we put the car so that it starts in the middle lane?</strong> To answer this, we need the road borders and the lane width. This lesson shows how <code>road.js</code> calculates them. It also explains how the camera keeps the moving car on screen. You do not need sine or cosine for this lesson.</p>
+      <p><strong>Where should the car start so it sits in the middle lane?</strong> Answering that needs two things: the road's edges and its lane width. <code>road.js</code> derives the edges from the center and width, and the lane width from the width and lane count. The same fractions then place every divider and lane center. The camera adds a separate draw-time shift to keep the car in view; no sine or cosine is required.</p>
     </aside>
 
-    <p class="lede">In the previous lessons, you learned how the car moves and turns. Now we give it a road. We will find the road borders first, divide the road into lanes, and calculate each lane center. We will use the same example throughout: a road centered at <code>x = 200</code>, with a width of 360 and 3 lanes.</p>
+    <p class="lede">The car can already move and turn, but it has nowhere to drive. This lesson gives it a road: find the two edges, divide the space between them into equal lanes, and locate every lane by a fraction of the way across. All the examples use one road — centered at <code>x = 200</code>, 360 units wide, with 3 lanes.</p>
 
     <section aria-labelledby="section-interval">
       <h2 id="section-interval"><span class="sec-num">Section 01</span>Find the left and right borders</h2>
 
-      <p>Look across the road from left to right. The <strong>x coordinate</strong> tells you the horizontal position: larger x values are farther right. To find both borders, start with the road center and move half the road width in each direction.</p>
-      <p>The constructor is the code that sets up a new <code>Road</code> object. It receives the center position, the full road width, and the number of lanes.</p>
+      <p>The <strong>x coordinate</strong> measures horizontal position: larger values lie farther right. The road's center is stored as <code>x</code>, so each border sits half the road width away from it — one to the left, one to the right.</p>
+      <p>The constructor receives that center, the full width, and the lane count, and derives both edges:</p>
 
       <figure class="code-figure">
         <pre><code><span class="comment">// road.js — constructor</span>
@@ -72,10 +72,10 @@ class Road {
             [topRight, bottomRight]
         ];
     }</code></pre>
-        <figcaption><strong>Listing 1.</strong> <code>width</code> is the whole road, so each edge is half a width away from the center. The constructor also stores <code>top</code>, <code>bottom</code>, and the two border segments; we will return to those in Section 05.</figcaption>
+        <figcaption><strong>Listing 1.</strong> <code>width</code> describes the whole road, so each edge is half a width from the center. The constructor also stores <code>top</code>, <code>bottom</code>, and both border segments; Section 05 revisits them.</figcaption>
       </figure>
 
-      <p>Run the actual numbers from <code>main.js</code>. The canvas is 400 wide, and the road is 90% of it:</p>
+      <p>With the values from <code>main.js</code> — a 400-wide canvas and a road that fills 90% of it — the arithmetic is:</p>
 
       <div class="formula-block">
         <span class="formula-label">The actual road in this repo</span>
@@ -84,11 +84,11 @@ class Road {
         right = 200 + 360 / 2 = 380
       </div>
 
-      <p>The road extends from <code>x = 20</code> to <code>x = 380</code>. We call this range an <strong>interval</strong>, written <code>[20, 380]</code>. These values are <a href="../reference/trig-glossary.html#world-coordinates">world coordinates</a>: the positions stored by the road. The camera changes where we draw the road on screen, not these stored values. Section 06 explains the camera.</p>
+      <p>The road spans <code>[20, 380]</code>, an <strong>interval</strong>. These are <a href="../reference/trig-glossary.html#world-coordinates">world coordinates</a>: the positions the road stores. The camera changes only where they appear on screen, not the values themselves; Section 06 explains how.</p>
 
       <aside class="callout callout--note">
         <p class="callout-title">Width is the whole road</p>
-        <p>If you treat <code>width</code> as a half-width, you get <code>left = 200 − 360 = −160</code> and <code>right = 560</code>. The road still looks centered, but it is twice as wide as intended and both lane formulas are wrong. Read the derivation as “center minus half the width,” never as “center minus the width.”</p>
+        <p>Treat <code>width</code> as a half-width and you get <code>left = 200 − 360 = −160</code> and <code>right = 560</code>. The road still looks centered; it is simply twice as wide, and every lane calculation built on it is wrong. Read the formula as “center minus half the width,” never “center minus the width.”</p>
       </aside>
 
       <div class="table-wrap">
@@ -135,9 +135,9 @@ class Road {
     <section aria-labelledby="section-fractions">
       <h2 id="section-fractions"><span class="sec-num">Section 02</span>Find the lane dividers and lane centers</h2>
 
-      <p>Divide the road width by the number of lanes: <code>360 / 3 = 120</code>. Each lane is 120 units wide. A <strong>lane divider</strong> is the painted line between two lanes. A <strong>lane center</strong> is the position halfway across a lane.</p>
-      <p>Lane numbers start at 0. Lane 0 extends from 20 to 140, so its center is 80. Lane 1 extends from 140 to 260, so its center is 200. Lane 2 extends from 260 to 380, so its center is 320.</p>
-      <p>In the formulas below, <code>i</code> is an index, or position number. For a lane center, it is the lane number. For a boundary, it counts lane widths from the left border. A boundary can be a road border or a lane divider. We will explain <code>lerp</code> in Section 03; first, read the additions and multiplications.</p>
+      <p>Divide the road width by the lane count: <code>360 / 3 = 120</code>, so each lane is 120 units wide. A <strong>lane divider</strong> is the painted line between two lanes. A <strong>lane center</strong> is the midpoint of a lane, half a lane width from either edge.</p>
+      <p>Lane numbers start at 0. Lane 0 spans <code>[20, 140]</code> with its center at 80; lane 1 spans <code>[140, 260]</code> with its center at 200; lane 2 spans <code>[260, 380]</code> with its center at 320.</p>
+      <p>In the formulas below, <code>i</code> is the lane number for a center. For a boundary, it counts lane widths from the left border. A <strong>boundary</strong> is one of the vertical lines in the road model: either a road border or a lane divider. Read the arithmetic first; Section 03 explains why it is also a <code>lerp</code>.</p>
 
       <div class="formula-block">
         <span class="formula-label">The two formulas that place every vertical line</span>
@@ -146,7 +146,7 @@ class Road {
         center<sub>i</sub> = left + (i + 0.5) × laneWidth = <em>lerp(left, right, (i + 0.5) / laneCount)</em>
       </div>
 
-      <p>To find a boundary, start at the left border and add <code>i</code> lane widths. To find the center of lane <code>i</code>, add another half lane width. This is why the center formula uses <code>i + 0.5</code>.</p>
+      <p>To place a boundary, start at the left border and add <code>i</code> lane widths. For a lane center, start at the same border, add <code>i</code> lane widths, and then half a lane width more — hence the <code>i + 0.5</code>.</p>
 
       <div class="table-wrap">
         <table>
@@ -213,7 +213,7 @@ class Road {
         &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; = <em>lerp(left, right, (i + 0.5) / laneCount)</em>
       </div>
 
-      <p>Now read <code>getLaneCenter</code> as the second formula written out in code:</p>
+      <p>Here is <code>getLaneCenter</code> written from that second formula:</p>
 
       <figure class="code-figure">
         <pre><code><span class="comment">// road.js — getLaneCenter()</span>
@@ -223,12 +223,12 @@ getLaneCenter(laneIndex){
          + laneWidth / 2                               <span class="comment">// half a lane in</span>
          + Math.min(laneIndex, this.laneCount - 1) * laneWidth;
 }</code></pre>
-        <figcaption><strong>Listing 2.</strong> Start at the left border. Add half a lane width to reach the first lane center. Then add one full lane width for each increase in the lane number. <code>Math.min</code> limits large lane numbers to the last lane.</figcaption>
+        <figcaption><strong>Listing 2.</strong> <code>getLaneCenter</code> starts at the left border, steps in by half a lane width to reach lane 0's center, then adds one full lane width per lane. <code>Math.min</code> clamps an oversized lane number to the last lane.</figcaption>
       </figure>
 
-      <p>In <code>main.js</code>, we create the road before the car. Then <code>new Car(road.getLaneCenter(1), 200, 30, 50)</code> uses lane 1's center as the car's starting x coordinate. This puts the car at <code>x = 200</code>, in the middle lane.</p>
+      <p><code>main.js</code> creates the road first, then calls <code>new Car(road.getLaneCenter(1), 200, 30, 50)</code>, using lane 1's center as the car's starting x. That puts the car at <code>x = 200</code>, in the middle lane.</p>
 
-      <p><code>Math.min</code> only limits values that are too large. With 3 lanes, <code>getLaneCenter(99)</code> returns lane 2's center. But <code>getLaneCenter(-1)</code> returns a position outside the road. Use whole-number lane indices from <code>0</code> to <code>laneCount − 1</code>.</p>
+      <p><code>Math.min</code> clamps only at the top. With 3 lanes, <code>getLaneCenter(99)</code> returns lane 2's center, but <code>getLaneCenter(-1)</code> falls outside the road. Pass whole-number indices from <code>0</code> to <code>laneCount − 1</code>.</p>
 
       <p>The drawing loop uses the boundary formula, not the center formula:</p>
 
@@ -240,32 +240,32 @@ for(let i = 1; i &lt;= this.laneCount - 1; i++){
     );
     ...
 }</code></pre>
-        <figcaption><strong>Listing 3.</strong> The loop starts at 1 and stops at <code>laneCount − 1</code>. Index 0 and index <code>laneCount</code> are the two borders, which are drawn separately and solid.</figcaption>
+        <figcaption><strong>Listing 3.</strong> The loop runs from 1 to <code>laneCount − 1</code>. The two borders sit at indices 0 and <code>laneCount</code>; they are drawn separately as solid lines.</figcaption>
       </figure>
 
       <aside class="callout callout--gold">
         <p class="callout-title">A lane divider is not a lane center</p>
-        <p>With 3 lanes, the first divider is one-third of the way across the road: <code>t = 1/3</code>. The first lane center is only one-sixth of the way across: <code>t = 1/6</code>. Use the center to place the car. Use the divider to draw the line between lanes.</p>
+        <p>With 3 lanes, the first divider sits one-third of the way across (<code>t = 1/3</code>), while lane 0's center sits only one-sixth of the way across (<code>t = 1/6</code>). Use the center to place the car; use the divider to draw the line between lanes.</p>
       </aside>
 
       <aside class="callout callout--note">
         <p class="callout-title">Lane width and line thickness are different</p>
-        <p><code>laneWidth</code> in this file means the width of a lane, not the thickness of a line. The line thickness is <code>ctx.lineWidth = 5</code>. The names are close; the quantities are unrelated.</p>
+        <p><code>laneWidth</code> here is the width of a lane, not the thickness of a line. Line thickness is <code>ctx.lineWidth = 5</code>. The names are similar; the quantities have nothing to do with each other.</p>
       </aside>
     </section>
 
     <section aria-labelledby="section-lerp">
-      <h2 id="section-lerp"><span class="sec-num">Section 03</span>Use <code>lerp</code> to find a position between two values</h2>
+      <h2 id="section-lerp"><span class="sec-num">Section 03</span>Use <code>lerp</code> to find any point between two values</h2>
 
-      <p>Suppose you want the position halfway between the road borders. Start at 20 and add half the road width: <code>20 + 360 × 0.5 = 200</code>. The <code>lerp</code> function does this calculation for any fraction.</p>
-      <p><code>lerp</code> is short for <a href="../reference/trig-glossary.html#linear-interpolation"><strong>linear interpolation</strong></a>. It takes a start value <code>A</code>, an end value <code>B</code>, and a fraction <code>t</code>. It returns the value that fraction of the way from <code>A</code> to <code>B</code>.</p>
+      <p>Suppose you want the point halfway between the road's borders. Start at 20 and add half the width: <code>20 + 360 × 0.5 = 200</code>. <code>lerp</code> performs that calculation for any fraction.</p>
+      <p><code>lerp</code> stands for <a href="../reference/trig-glossary.html#linear-interpolation"><strong>linear interpolation</strong></a>. It takes a start value <code>A</code>, an end value <code>B</code>, and a fraction <code>t</code>, and returns the value that fraction of the way from <code>A</code> to <code>B</code>.</p>
 
       <figure class="code-figure">
         <pre><code><span class="comment">// util.js</span>
 function lerp(A, B, t){
     return A + (B - A) * t;
 }</code></pre>
-        <figcaption><strong>Listing 4.</strong> <code>B − A</code> is the total gap. Multiplying by <code>t</code> takes that fraction of the gap, and adding <code>A</code> anchors the result at the start.</figcaption>
+        <figcaption><strong>Listing 4.</strong> <code>B − A</code> is the distance from <code>A</code> to <code>B</code>. Multiplying it by <code>t</code> takes that fraction of the distance; adding <code>A</code> anchors the result at the start.</figcaption>
       </figure>
 
       <div class="formula-block">
@@ -274,8 +274,8 @@ function lerp(A, B, t){
         &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; = (1 − t) · A + t · B &nbsp;&nbsp; <span style="color: var(--muted); font-family: var(--sans); font-size: 0.72rem;">(a weighted average)</span>
       </div>
 
-      <p>At <code>t = 0</code>, add none of the distance: the result is <code>A</code>. At <code>t = 1</code>, add the full distance: the result is <code>B</code>. At <code>t = 0.5</code>, add half the distance.</p>
-      <p>The second formula gives the same result. It multiplies each endpoint by a share, then adds the results. This is called a <strong>weighted average</strong>. You can use the first formula for all the exercises here. See <a href="https://en.wikipedia.org/wiki/Linear_interpolation" target="_blank" rel="noreferrer">Wikipedia's linear interpolation page</a> for more detail.</p>
+      <p>At <code>t = 0</code> none of the distance is added and the result is <code>A</code>. At <code>t = 1</code> all of it is added and the result is <code>B</code>. At <code>t = 0.5</code> the result lies halfway.</p>
+      <p>The second form says the same thing as a <strong>weighted average</strong>: give each endpoint its share, then add. Either form works for every exercise here; <a href="https://en.wikipedia.org/wiki/Linear_interpolation" target="_blank" rel="noreferrer">Wikipedia's linear interpolation article</a> has the full derivation.</p>
 
       <div class="table-wrap">
         <table>
@@ -319,10 +319,10 @@ function lerp(A, B, t){
 
       <aside class="callout callout--note">
         <p class="callout-title">Why linear is enough here</p>
-        <p>Across this straight road, each increase of <code>0.1</code> in <code>t</code> moves the point by one-tenth of the road width. We only need the two border positions to calculate it. A curved road would need more information about its shape.</p>
+        <p>Because this road is straight, each increase of <code>0.1</code> in <code>t</code> moves the point one-tenth of the road width. Two endpoints are enough to compute any point between them. A curved road would need more information about its shape.</p>
       </aside>
 
-      <p>Here, <code>lerp</code> calculates an x coordinate. It can also calculate a y coordinate. To find a point partway along a segment, calculate x and y separately:</p>
+      <p><code>lerp</code> is not limited to x coordinates. To find a point partway along any segment, interpolate each coordinate with the same fraction:</p>
 
       <div class="formula-block">
         <span class="formula-label">Use the same fraction for both coordinates</span>
@@ -331,24 +331,24 @@ function lerp(A, B, t){
         first lane center = lerp(left, right, (0 + 0.5) / laneCount)
       </div>
 
-      <p>Later, a sensor ray will be a segment from the car to a point farther away. We will calculate where that segment crosses a road border. Intersection math finds the fraction along the ray; <code>lerp</code> then gives the crossing position. You do not need to solve this yet. Radu Mariescu-Istodor's <a href="https://www.youtube.com/watch?v=fHOLQJo0FjQ" target="_blank" rel="noreferrer">segment intersection lesson</a> explains that next step.</p>
+      <p>A sensor ray is a segment too: it runs from the car to a point some distance away. Intersection math will find the fraction where the ray meets a border, and <code>lerp</code> will turn that fraction into the crossing point. You do not need to solve that yet; Radu Mariescu-Istodor's <a href="https://www.youtube.com/watch?v=fHOLQJo0FjQ" target="_blank" rel="noreferrer">segment intersection lesson</a> takes the next step.</p>
 
       <aside class="callout callout--note">
         <p class="callout-title">t is a fraction, not a distance</p>
-        <p><code>t = 0.5</code> means halfway across the interval, not half a pixel. At <code>t = 1/3</code> the point is 140 on this road; change the width and the pixel position changes, but the fraction still means one-third of the way across. The fraction stays meaningful when the width changes; a fixed pixel offset would not.</p>
+        <p><code>t = 0.5</code> means halfway across the interval, not half a pixel. On this road <code>t = 1/3</code> lands at 140; change the width and the pixel position changes too, while the fraction still means one-third of the way across. That is why the lane code works in fractions — a fixed pixel offset would break as soon as the width changed.</p>
       </aside>
 
       <aside class="callout callout--note">
         <p class="callout-title">Outside 0 and 1 is extrapolation</p>
-        <p><code>lerp(20, 380, 2)</code> returns 740, past the right edge along the same line. The lane code never uses such values, but sensor and collision code sometimes does. The formula does not care whether the point is inside the segment; only the caller decides that.</p>
+        <p><code>lerp(20, 380, 2)</code> returns 740, past the right edge but still on the same line. The lane code never asks for values outside <code>[0, 1]</code>, though sensor and collision code sometimes will. The formula does not care whether the point lies inside the segment; only the caller decides that.</p>
       </aside>
     </section>
 
     <section aria-labelledby="section-lab">
       <h2 id="section-lab"><span class="sec-num">Section 04</span>Road lab: move the lanes, not the car</h2>
 
-      <p>Before you move a slider, calculate an answer. With width 360 and 3 lanes, where are the borders? What is the lane width? Where is lane 1's center? Compare your answers with the values below the diagrams. Then predict the four lane centers before you change the lane count to 4.</p>
-      <p>The gold line and dot mark a test position, called the <strong>probe</strong>. The <code>t</code> slider moves this position across the road. It does not move the car. The “Car lane” slider selects the car's lane.</p>
+      <p>Before touching a slider, work out the answers. With width 360 and 3 lanes, what are the two border positions, the lane width, and lane 1's center? Check them against the readouts under the diagrams, then predict all four centers before switching to 4 lanes.</p>
+      <p>The gold line and dot mark a <strong>probe</strong> — a test position that the <code>t</code> slider moves across the road. It is independent of the car; the “Car lane” slider chooses the car's lane.</p>
 
       <figure class="figure-wide">
         <div class="lab" data-road-lab>
@@ -449,25 +449,25 @@ function lerp(A, B, t){
             <p class="formula" data-road-formula></p>
           </div>
         </div>
-        <figcaption><strong>Figure 1.</strong> Left: the road as drawn, with borders, dashed dividers, lane-center dots, and the car. Right: the same interval flattened into a number line, with the fraction of each boundary. The gold probe is <code>lerp(left, right, t)</code>. Change the lane count and watch the interior fractions subdivide the same two edges.</figcaption>
+        <figcaption><strong>Figure 1.</strong> Left, the road as drawn: borders, dashed dividers, lane-center dots, and the car. Right, the same interval flattened into a number line with each boundary's fraction. The gold probe is <code>lerp(left, right, t)</code>. Change the lane count and watch the interior fractions subdivide the same two edges.</figcaption>
       </figure>
 
-      <p>Try these four experiments in order. Say the answer before moving the control.</p>
+      <p>Work through the four experiments in order, saying each answer before you move a control.</p>
 
       <ol>
         <li><strong>3 lanes, width 360.</strong> Predict the lane width and all three centers. Check: 120 wide, centers at 80, 200, and 320.</li>
         <li><strong>Switch to 4 lanes.</strong> The edges stay at 20 and 380; only the interior changes. Predict the new lane width and centers: 90 wide, centers at 65, 155, 245, and 335. Dividers sit at 110, 200, and 290.</li>
-        <li><strong>Set <code>t = 0.5</code>.</strong> With 3 lanes the probe lands on lane 1's center. With 4 lanes it lands on a divider. The midpoint of the road is not always a lane center; that depends on whether the lane count is odd.</li>
-        <li><strong>Press “First lane center,” then “First divider.”</strong> The fractions are <code>0.5 / laneCount</code> and <code>1 / laneCount</code>. With 3 lanes: <code>1/6</code> and <code>1/3</code>.</li>
+        <li><strong>Set <code>t = 0.5</code>.</strong> With 3 lanes the probe lands on lane 1's center; with 4 lanes it lands on a divider. The midpoint of the road is a lane center only when the lane count is odd.</li>
+        <li><strong>Press “First lane center,” then “First divider.”</strong> The fractions are <code>0.5 / laneCount</code> and <code>1 / laneCount</code>; with 3 lanes, <code>1/6</code> and <code>1/3</code>.</li>
       </ol>
 
-      <p>Changing the width moves both edges symmetrically around x = 200, so an odd lane count keeps its middle lane at 200. Changing the lane count keeps the edges fixed and subdivides the same interval more finely. Those are independent controls on purpose.</p>
+      <p>Changing the width moves both edges symmetrically around <code>x = 200</code>, which keeps the middle lane at 200 when the lane count is odd. Changing the lane count leaves the edges fixed and subdivides the same interval more finely. The two controls are independent by design.</p>
     </section>
 
     <section aria-labelledby="section-borders">
       <h2 id="section-borders"><span class="sec-num">Section 05</span>Borders are segments, not just lines</h2>
 
-      <p>So far, we have used only the borders' x coordinates. To draw a border, we also need its top and bottom points. A <a href="../reference/trig-glossary.html#segment"><strong>segment</strong></a> is a straight piece of line between two endpoints. <code>this.borders</code> stores one segment for each road border.</p>
+      <p>Until now, the borders have mattered only for their x coordinates. Drawing one also needs a top and a bottom point, so <code>this.borders</code> stores each border as a <a href="../reference/trig-glossary.html#segment"><strong>segment</strong></a> — a straight line between two endpoints.</p>
 
       <figure class="code-figure">
         <pre><code><span class="comment">// road.js — constructor, border setup</span>
@@ -484,15 +484,15 @@ const bottomRight = {x: this.right, y: this.bottom};
     [topLeft, bottomLeft],
     [topRight, bottomRight]
 ];</span></code></pre>
-        <figcaption><strong>Listing 5.</strong> <code>borders</code> is a list of two segments. The first contains the left border's endpoints. The second contains the right border's endpoints. Each point stores an x and a y coordinate.</figcaption>
+        <figcaption><strong>Listing 5.</strong> <code>borders</code> holds two segments: the left border's endpoints, then the right border's. Each point carries an x and a y coordinate.</figcaption>
       </figure>
 
-      <p>Why keep endpoints as well as <code>left</code> and <code>right</code>? The future sensor code will test where two segments cross. Endpoints describe both vertical and slanted segments. A curved border could be approximated by several straight segments. The drawing loop could still draw each segment from <code>border[0]</code> to <code>border[1]</code>.</p>
+      <p>Why keep endpoints when <code>left</code> and <code>right</code> already give the x positions? Segment intersection needs both ends of every line, and endpoints also describe slanted borders. A curved border can be approximated by several straight segments, and the drawing loop can render each one from <code>border[0]</code> to <code>border[1]</code> without knowing its shape.</p>
 
-      <p>The road starts at <code>y = −1000000</code> and ends at <code>y = 1000000</code>. These are large but finite numbers. The glossary calls this <strong>practical infinity</strong>: the road is long enough for normal use, but it does have ends.</p>
-      <p>Why not use JavaScript's <code>Infinity</code>? Some calculations with it produce <code>NaN</code>, which means “not a number.” For example, <code>Infinity − Infinity</code> produces <code>NaN</code>. Finite endpoints avoid this problem in later intersection calculations.</p>
+      <p>The road runs from <code>y = −1000000</code> to <code>y = 1000000</code>: large but finite. The glossary calls this <strong>practical infinity</strong> — long enough for normal use, yet still finite.</p>
+      <p>Why not JavaScript's <code>Infinity</code>? Arithmetic with it can produce <code>NaN</code> (“not a number”) — for instance, <code>Infinity − Infinity</code>. Finite endpoints avoid that in the intersection calculations to come.</p>
 
-      <p>Drawing the borders is where canvas state matters:</p>
+      <p>Drawing the borders is where canvas state begins to matter:</p>
 
       <figure class="code-figure">
         <pre><code><span class="comment">// road.js — draw()</span>
@@ -515,26 +515,26 @@ this.borders.forEach((border) =&gt; {
     ctx.lineTo(border[1].x, border[1].y);
     ctx.stroke();
 });</code></pre>
-        <figcaption><strong>Listing 6.</strong> The dashed pattern is set before the dividers and cleared before the borders. <code>[20, 20]</code> means 20 units of ink, then 20 units of gap, repeating.</figcaption>
+        <figcaption><strong>Listing 6.</strong> The dash pattern is set before the dividers and cleared before the borders. <code>[20, 20]</code> means 20 units of ink, then 20 units of gap, repeating.</figcaption>
       </figure>
 
-      <p><code>setLineDash</code> is part of the canvas's drawing state; it persists across paths and strokes until you change it. The empty array restores solid strokes. If you delete <code>ctx.setLineDash([])</code>, the borders inherit the last dash pattern and come out dashed too. The <a href="https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/setLineDash" target="_blank" rel="noreferrer">MDN <code>setLineDash</code> reference</a> states the reset rule directly: an empty array clears the dash list and returns strokes to solid.</p>
+      <p><code>setLineDash</code> is part of the canvas drawing state, so it persists across paths and strokes until changed. The empty array restores solid strokes. Remove <code>ctx.setLineDash([])</code> and the borders inherit the last dash pattern; MDN's <a href="https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/setLineDash" target="_blank" rel="noreferrer"><code>setLineDash</code> reference</a> states the reset rule directly.</p>
 
       <aside class="callout callout--note">
         <p class="callout-title">Style first, path second, stroke third</p>
-        <p><code>beginPath()</code>, <code>moveTo()</code>, and <code>lineTo()</code> describe a path; <code>stroke()</code> paints it with the current style. Changing <code>strokeStyle</code> after <code>stroke()</code> has no effect on what is already painted. The code sets the style once at the top, then changes only the dash pattern between the two groups of lines.</p>
+        <p><code>beginPath()</code>, <code>moveTo()</code>, and <code>lineTo()</code> describe a path; <code>stroke()</code> paints it with the current style. Changing <code>strokeStyle</code> after <code>stroke()</code> does not change what has already been painted. The code sets the style once at the top, then changes only the dash pattern between the two groups of lines.</p>
       </aside>
 
       <aside class="callout callout--gold">
         <p class="callout-title">Read each border from top to bottom</p>
-        <p><code>border[0]</code> is the top endpoint. <code>border[1]</code> is the bottom endpoint. Reversing them draws the same line. Keep the same order for both borders so the data is easy to read.</p>
+        <p><code>border[0]</code> is the top endpoint and <code>border[1]</code> the bottom one. Reversing them would draw the same line, but keeping a consistent order makes the data easier to read.</p>
       </aside>
     </section>
 
     <section aria-labelledby="section-camera">
       <h2 id="section-camera"><span class="sec-num">Section 06</span>The camera keeps the car in view</h2>
 
-      <p>The car's stored position changes as it drives. But on screen, we want it to stay near the bottom so we can see the road ahead. The <strong>camera</strong> does this by shifting the drawing vertically. This shift is called a <strong>translation</strong>. It does not change the stored positions.</p>
+      <p>As the car drives, its stored position changes; on screen, it should stay near the bottom so the road ahead remains visible. The <strong>camera</strong> does this with a vertical shift — a <strong>translation</strong> applied while drawing, not a change to any stored value.</p>
 
       <figure class="code-figure">
         <pre><code><span class="comment">// main.js — animate()</span>
@@ -545,10 +545,10 @@ ctx.save();
 road.draw(ctx);
 car.draw(ctx);
 ctx.restore();</code></pre>
-        <figcaption><strong>Listing 7.</strong> The world is drawn after a vertical camera translation. The car is drawn after the road, so it sits on top. <code>save()</code> and <code>restore()</code> keep the camera transform from leaking into anything drawn later.</figcaption>
+        <figcaption><strong>Listing 7.</strong> The world is drawn under a vertical camera translation, then the car on top of the road. <code>save()</code> and <code>restore()</code> keep the camera transform from leaking into later drawing.</figcaption>
       </figure>
 
-      <p>Read the translation as a camera. On screen, the car should stay about 70% of the way down the viewport. The car's world y decreases as it drives up, so the world must be pushed down by the same amount. The formula is:</p>
+      <p>Read the translation as a camera holding the car about 70% of the way down the viewport. The car's world y decreases as it drives up, so the world must be pushed down by the same amount:</p>
 
       <div class="formula-block">
         <span class="formula-label">World y to screen y</span>
@@ -559,25 +559,25 @@ ctx.restore();</code></pre>
         car's screen y = 150 + 410 = 560&nbsp;&nbsp; (unchanged)
       </div>
 
-      <p>When the car moves up 50 world units, the translation grows by 50, so everything else on the road moves down 50 on screen. The car stays pinned at 560. The road appears to scroll past it. There is no horizontal translation in this build, so world x and screen x currently coincide; the car can still steer off the side of the road.</p>
+      <p>When the car rises 50 world units, the translation grows by 50 and everything else moves down 50 on screen; the car remains pinned at 560 while the road scrolls past. There is no horizontal translation in this build, so world x and screen x coincide — which also means the car can still steer off the side of the road.</p>
 
-      <p>In Lesson 02, <code>rotate(−angle)</code> changed how we drew the car's direction. Here, <code>translate(0, −car.y + …)</code> changes where we draw the road and car. Both change the drawing, not the stored data. See the <a href="https://developer.mozilla.org/en-US/docs/Web/API/Canvas_API/Tutorial/Transformations" target="_blank" rel="noreferrer">MDN canvas transformations guide</a> for more detail.</p>
+      <p>Lesson 02's <code>rotate(−angle)</code> changed how the car's direction was drawn. Here <code>translate(0, −car.y + …)</code> changes where the road and car are drawn. Both affect drawing only, never stored data. The <a href="https://developer.mozilla.org/en-US/docs/Web/API/Canvas_API/Tutorial/Transformations" target="_blank" rel="noreferrer">MDN canvas transformations guide</a> has the details.</p>
 
       <aside class="callout callout--note">
         <p class="callout-title">Resizing the canvas resets the context</p>
-        <p><code>canvas.height = window.innerHeight</code> runs every frame. Setting a canvas's width or height clears the bitmap <em>and</em> resets the rendering context to its default state, including the transform, stroke styles, and dash list. That is why <code>road.draw()</code> sets <code>lineWidth</code> and <code>strokeStyle</code> every frame instead of once in the constructor. See <a href="https://developer.mozilla.org/en-US/docs/Web/API/HTMLCanvasElement/height" target="_blank" rel="noreferrer">MDN's <code>HTMLCanvasElement.height</code></a>.</p>
+        <p><code>canvas.height = window.innerHeight</code> runs every frame. Assigning a canvas's width or height clears the bitmap <em>and</em> resets the rendering context to its defaults, including the transform, stroke styles, and dash list. That is why <code>road.draw()</code> sets <code>lineWidth</code> and <code>strokeStyle</code> every frame rather than once in the constructor. See <a href="https://developer.mozilla.org/en-US/docs/Web/API/HTMLCanvasElement/height" target="_blank" rel="noreferrer">MDN's <code>HTMLCanvasElement.height</code></a>.</p>
       </aside>
 
       <aside class="callout callout--gold">
         <p class="callout-title">Stored position and screen position are different</p>
-        <p><strong>World coordinates</strong> are the positions stored by the car and road. <strong>Screen coordinates</strong> are where they appear on the canvas after the camera shift. In both, y increases downward. If an object appears in the wrong place, first check its stored position. Then check the camera shift.</p>
+        <p><strong>World coordinates</strong> are the positions the car and road store; <strong>screen coordinates</strong> are where those positions land on the canvas after the camera shift. In both, y increases downward. If something appears in the wrong place, check its stored position first, then the camera shift.</p>
       </aside>
     </section>
 
     <section aria-labelledby="section-quiz">
       <h2 id="section-quiz"><span class="sec-num">Section 07</span>Check your understanding</h2>
 
-      <p>Answer from memory. The feedback appears immediately; the explanation appears after you choose.</p>
+      <p>Answer from memory. Feedback appears immediately; the explanation appears after you choose.</p>
 
       <div class="quiz" data-quiz data-correct-text="Correct — that is the right answer." data-wrong-text="Not quite — re-read the section and try again.">
         <div class="quiz-head">
@@ -653,32 +653,32 @@ ctx.restore();</code></pre>
     <section aria-labelledby="section-apply">
       <h2 id="section-apply"><span class="sec-num">Section 08</span>Predict, then inspect</h2>
 
-      <p>Open <code>index.html</code> in your browser and open the developer console. The car should be in the middle lane at the bottom of the road. Predict each value before you type it.</p>
+      <p>Open <code>index.html</code> in your browser, bring up the developer console, and predict each value before you type it. The car should start in the middle lane near the bottom of the road.</p>
 
       <ol>
-        <li><code>road.getLaneCenter(0)</code>, <code>road.getLaneCenter(1)</code>, <code>road.getLaneCenter(2)</code>. Predict 20 + 60 + i × 120: 80, 200, 320.</li>
-        <li><code>road.laneCount = 4;</code> Predict the lane width and all four centers before the next frame redraws: 90 wide; 65, 155, 245, 335. Where is the car now? It stayed at x = 200, which is a divider in a four-lane road. Set <code>car.x = road.getLaneCenter(1);</code> to put it back in a lane.</li>
-        <li><code>road.laneCount = 3;</code> and <code>car.x = road.getLaneCenter(1);</code> to return to the original setup. The car's x is stored separately from the road, so changing the lane count does not move the car by itself.</li>
+        <li><code>road.getLaneCenter(0)</code>, <code>road.getLaneCenter(1)</code>, and <code>road.getLaneCenter(2)</code>. Predict 20 + 60 + i × 120: 80, 200, 320.</li>
+        <li><code>road.laneCount = 4;</code> Predict the lane width and all four centers before the next frame redraws: 90 wide; 65, 155, 245, 335. Where is the car now? It stayed at x = 200, which is a divider on a four-lane road. Set <code>car.x = road.getLaneCenter(1);</code> to return it to a lane.</li>
+        <li><code>road.laneCount = 3;</code> and <code>car.x = road.getLaneCenter(1);</code> restore the original setup. The car's x is stored separately from the road, so changing the lane count never moves the car by itself.</li>
       </ol>
 
       <aside class="callout callout--gold">
         <p class="callout-title">Challenge: what happens if you change only the width?</p>
-        <p>Type <code>road.width = 300;</code>. The calculated lane centers change because <code>getLaneCenter</code> reads the current width. But the drawn borders stay at 20 and 380. The constructor calculated <code>left</code>, <code>right</code>, and <code>borders</code> only when it created the road. Changing <code>width</code> does not calculate them again.</p>
-        <p>The stored values no longer agree: the lane centers use a width of 300, but the drawn road is still 360 wide. To avoid this, create a new <code>Road</code> with the new width, or add a method that updates all these values together. Reload the page after this experiment to restore the original road.</p>
+        <p>Type <code>road.width = 300;</code>. The lane centers change because <code>getLaneCenter</code> reads the current width, but the drawn borders stay at 20 and 380. The constructor calculated <code>left</code>, <code>right</code>, and <code>borders</code> once, when it created the road; changing <code>width</code> does not recompute them.</p>
+        <p>Now the stored values disagree: the centers assume a width of 300, while the road is still drawn 360 wide. Create a new <code>Road</code> with the new width, or add a method that updates every derived value together. Reload the page afterward to restore the original road.</p>
       </aside>
 
-      <p>The rule is simple: <code>right − left</code> must equal <code>width</code>. The dividers use the distance between the borders. The lane centers use the stored width. If those distances differ, the dividers and lane centers no longer describe the same lanes.</p>
+      <p>One rule keeps the geometry consistent: <code>right − left</code> must equal <code>width</code>. Dividers use the distance between the borders; lane centers use the stored width. If those distances differ, the dividers and centers no longer describe the same lanes.</p>
 
       <aside class="callout callout--win">
         <p class="callout-title">Teach it back</p>
-        <p>Keep the road centered at <code>x = 200</code>, with width 360 and 4 lanes. Without looking at the formulas, calculate lane 2's center. Then calculate the position of the divider immediately to its left and that divider's fraction <code>t</code>. Explain why the center is half a lane width to the right of the divider.</p>
+        <p>With the road still centered at <code>x = 200</code>, make it 360 wide with 4 lanes. Without looking at the formulas, calculate lane 2's center, the divider immediately to its left, and that divider's fraction <code>t</code>. Then explain why the center lies half a lane width to the right of the divider.</p>
       </aside>
     </section>
 
     <section aria-labelledby="section-source">
       <h2 id="section-source"><span class="sec-num">Section 09</span>Primary sources</h2>
 
-      <p>Read the interpolation definition first, then watch the road chapter of the course this project follows.</p>
+      <p>Start with the interpolation definition, then watch the road chapter of the course this project follows.</p>
 
       <div class="source-card">
         <div class="source-mark" aria-hidden="true">1</div>
@@ -707,7 +707,7 @@ ctx.restore();</code></pre>
         </div>
       </div>
 
-      <p>When you finish, explain in your own words how you find a lane divider and a lane center. Start at the left border. How many lane widths do you add in each case?</p>
+      <p>When you finish, explain in your own words how to find a lane divider and a lane center from the left border. How many lane widths do you add in each case?</p>
     </section>
 
     <aside class="teacher">
@@ -718,7 +718,7 @@ ctx.restore();</code></pre>
     <footer class="lesson-footer">
       <nav class="footer-nav" aria-label="Lesson navigation">
         <span>Reference: <a href="../reference/road-geometry.html">Road geometry</a> · <a href="../reference/trig-for-car-movement.html">Trig for car movement</a> · <a href="../reference/trig-glossary.html">Glossary</a></span>
-        <span>Previous: <a href="0002-rotation-and-reverse.html">The car that draws backwards</a> · Next: sensor rays</span>
+        <span>Previous: <a href="0002-rotation-and-reverse.html">The car that draws backwards</a> · Next: <a href="0004-ray-casting-and-intersection.html">sensor rays</a></span>
       </nav>
       <p>Lesson 03 · <a href="../MISSION.md">Mission: Trigonometry for a Self-Driving Car</a> · 17 November 2026</p>
     </footer>

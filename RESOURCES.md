@@ -19,9 +19,15 @@
 - [MDN: `HTMLCanvasElement.height`](https://developer.mozilla.org/en-US/docs/Web/API/HTMLCanvasElement/height)
   States that setting `width` or `height` clears the canvas and resets the entire rendering context, including styles and transforms. Use for: why `main.js` re-applies canvas state every frame.
 - [Video: "Self-Driving Car with JavaScript Course" by Radu Mariescu-Istodor (freeCodeCamp)](https://www.youtube.com/watch?v=Rs_rAxEsAvI&t=1946s)
-  The course this repo follows. _Defining the road_ starts at 32:26; the road class, lane loop, and `Math.min` clamp are built there. Use for: seeing the original implementation alongside this repo's version.
+  The course this repo follows. _Defining the road_ starts at 32:26. Use for: seeing the original implementation alongside this repo's version.
+- [Video: "Self-driving car — Lecture 3: Artificial sensors" by Radu Mariescu-Istodor](https://youtu.be/2AKMSO2Gocs)
+  The branch's direct source. Builds the `Sensor` class, the ray fan, border detection, sensor drawing, and `getIntersection`. Use for: the implementation walkthrough and the pinned `getIntersection` function.
 - [Video: "Segment intersection formula explained" by Radu Mariescu-Istodor](https://www.youtube.com/watch?v=fHOLQJo0FjQ)
   Builds segment intersection from `lerp`, including the midpoint and extrapolation cases. Use for: the mathematical bridge from lane geometry to sensor rays and collision detection.
+- [Wikipedia: "Line–line intersection"](https://en.wikipedia.org/wiki/Line%E2%80%93line_intersection)
+  The general two-line solution, including the determinant form and the parallel case. Use for: checking the `t` and `u` formulas independently of the video.
+- [Video: 3Blue1Brown — "The determinant"](https://www.youtube.com/watch?v=Ip3X9LOh2dk)
+  Why a determinant is a signed area and why zero means dependent directions. Use for: the geometric meaning of `bottom = r × s`, including the 2D picture before the 3D section.
 - [Khan Academy: "Unit circle"](https://www.khanacademy.org/math/trigonometry/unit-circle-trig-func/unit-circle-definition-of-trig-functions/v/unit-circle-definition-of-trig-functions-1)
   Clean derivation of sine and cosine on the unit circle, from the SOHCAHTOA definition. Use for: patching unit-circle gaps.
 - [Video series: _Math for Game Developers_ by Jorge Rodriguez](https://www.youtube.com/playlist?list=PLW3Zl3wyJwWOpdhYedlD-yCB7WQoHf-My)
@@ -38,5 +44,6 @@
 
 ## Gaps
 
-- Segment intersection now has a strong source (Radu's video). Still to source: a dedicated 2D raycasting reference for the sensor lesson, ideally one that covers rays vs. line segments rather than grid-based raycasting.
-- No community preference recorded yet; confirm whether the user wants to join one.
+- Segment intersection has three strong sources: Radu's lecture, Radu's formula video, and Wikipedia. The local `reference/ray-intersection.html` now compresses them into the project's notation.
+- Still to source: a dedicated ray-vs-circle reference for a future circular obstacle (the current sensor only handles segments). Use the quadratic form of the ray equation when that comes up.
+- No community preference recorded yet; confirm whether the user wants to join one. The Game Development Stack Exchange is the best first fit for specific "why does my ray miss" questions.

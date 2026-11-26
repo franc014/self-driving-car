@@ -17,7 +17,7 @@
       <dl class="meta">
         <div>
           <dt>Time</dt>
-          <dd>25–30 minutes</dd>
+          <dd>35–40 minutes</dd>
         </div>
         <div>
           <dt>Prerequisite</dt>
@@ -62,17 +62,17 @@
             <tr>
               <td><code>rayCount</code></td>
               <td>How many rays are in the fan</td>
-              <td class="num">3</td>
+              <td class="num">8</td>
             </tr>
             <tr>
               <td><code>rayLength</code></td>
               <td>How far each ray reaches, in world units</td>
-              <td class="num">100</td>
+              <td class="num">200</td>
             </tr>
             <tr>
               <td><code>raySpread</code></td>
               <td>The <em>total</em> angle of the fan, in radians</td>
-              <td class="num">π/4 (45°)</td>
+              <td class="num">π/2 (90°)</td>
             </tr>
           </tbody>
         </table>
@@ -83,24 +83,30 @@
 class Sensor {
     constructor(car){
         this.car = car;
-<span class="hl">        this.rayCount = 3;
-        this.rayLength = 100;
-        this.raySpread = Math.PI / 4; //45 deg</span>
+<span class="hl">        this.rayCount = 8;
+        this.rayLength = 200;
+        this.raySpread = Math.PI / 2; //45 deg</span>
 
         this.rays = [];
+        this.readings = [];
     }
 }</code></pre>
-        <figcaption><strong>Listing 1.</strong> The constructor stores the car, the three settings, and an empty array for the rays it will cast. The casting itself happens in <code>update()</code>.</figcaption>
+        <figcaption><strong>Listing 1.</strong> The constructor stores the car, the three settings, an empty array for the rays, and an empty array for the readings. The casting happens in <code>update()</code>.</figcaption>
       </figure>
 
       <aside class="callout callout--gold">
         <p class="callout-title">Spread is the whole fan</p>
-        <p><code>raySpread</code> is the angle between the first and last ray, not the gap between two neighbours. With 3 rays and a 45° spread, the outer rays sit at <code>+22.5°</code> and <code>−22.5°</code> from the car's heading. The gap between adjacent rays is also 22.5° here, but that is a coincidence of using 3 rays.</p>
+        <p><code>raySpread</code> is the angle between the first and last ray, not the gap between two neighbours. With 8 rays and a 90° spread, the outer rays sit at <code>+45°</code> and <code>−45°</code> from the car's heading. The gap between adjacent rays is <code>90° / (8 − 1) ≈ 12.9°</code>, not 45°.</p>
+      </aside>
+
+      <aside class="callout callout--note">
+        <p class="callout-title">The code comment is wrong</p>
+        <p><code>Math.PI / 2</code> is 90°, not 45°. The trailing comment is stale: it was probably copied from an earlier <code>Math.PI / 4</code> version. Trust the arithmetic, not the comment. If you want a 45° fan, write <code>Math.PI / 4</code>; if you want the 90° fan this branch actually uses, fix the comment.</p>
       </aside>
 
       <aside class="callout callout--note">
         <p class="callout-title">The video uses different numbers</p>
-        <p>Radu's Lecture 3 uses 5 rays, a length of 150, and a 90° spread. This repo uses 3, 100, and 45°. The numbers change the picture, not the mathematics. The <a href="#section-lab">lab</a> lets you try both.</p>
+        <p>Radu's Lecture 3 uses 5 rays, a length of 150, and a 90° spread. This repo uses 8, 200, and 90°. The numbers change the picture, not the mathematics. The <a href="#section-lab">lab</a> lets you try both.</p>
       </aside>
 
       <p>A ray is a question: <em>what is the nearest object along this direction?</em> The answer is a point and a distance — or <code>null</code> if nothing is close enough. The sensor's job each frame is to cast the fan, ask every ray, and store the readings for the car's brain to use later.</p>
@@ -195,18 +201,18 @@ const end = {
 
       <h3>The fan is an interpolation of angles</h3>
 
-      <p>The sensor does not store three separate angles. It sweeps from one side of the fan to the other with <code>lerp</code>:</p>
+      <p>The sensor does not store eight separate angles. It sweeps from one side of the fan to the other with <code>lerp</code>. In this branch the loop lives in a private helper called <code>#castRays()</code>, and <code>update(roadBorders)</code> calls it once per frame:</p>
 
       <figure class="code-figure">
-        <pre><code><span class="comment">// sensor.js — update(), as it stands in this branch</span>
-update(){
+        <pre><code><span class="comment">// sensor.js — the private helper called by update()</span>
+#castRays(){
     this.rays = [];
     for(let i = 0; i &lt; this.rayCount; i++){
 <span class="hl">        const rayAngle = lerp(
             this.raySpread / 2,
             -this.raySpread / 2,
-            i / (this.rayCount - 1)
-        );</span>
+            this.rayCount == 1 ? 0.5 : i / (this.rayCount - 1)
+        ) + this.car.angle;</span>
 
         const start = { x: this.car.x, y: this.car.y };
         const end = {
@@ -216,25 +222,23 @@ update(){
         this.rays.push([start, end]);
     }
 }</code></pre>
-        <figcaption><strong>Listing 3.</strong> The loop sweeps from <code>+spread/2</code> to <code>−spread/2</code>. This is the fan before the car's rotation is added.</figcaption>
+        <figcaption><strong>Listing 3.</strong> The loop sweeps from <code>+spread/2</code> to <code>−spread/2</code>, then adds the car's angle so the fan turns with the car. The one-ray guard avoids <code>0/0</code>.</figcaption>
       </figure>
 
       <aside class="callout callout--gold">
-        <p class="callout-title">Two edits before the fan is correct</p>
-        <p>Compare Listing 3 with the lecture. The lecture adds <code>+ this.car.angle</code> after the <code>lerp</code>, and replaces the fraction with <code>this.rayCount === 1 ? 0.5 : i / (this.rayCount - 1)</code>. Without the first edit, every ray points up no matter which way the car faces. Without the second, a one-ray sensor divides by zero and produces <code>NaN</code>. Make both edits in <code>sensor.js</code> before using the lab.</p>
+        <p class="callout-title">Two details that make the fan correct</p>
+        <p><code>+ this.car.angle</code> rotates the whole fan. Without it, every ray points up no matter which way the car faces. The fraction <code>this.rayCount == 1 ? 0.5 : i / (this.rayCount - 1)</code> handles a one-ray sensor: <code>i / 0</code> would be <code>NaN</code>, so the code chooses the midpoint of the interval instead. Both details are already in this branch; the lab shows what happens when you change the settings.</p>
       </aside>
 
       <div class="formula-block">
-        <span class="formula-label">The corrected angle</span>
+        <span class="formula-label">The ray angle</span>
         rayAngle = lerp(+spread/2, −spread/2, fraction) + car.angle<br>
-        fraction = rayCount === 1 ? 0.5 : i / (rayCount − 1)
+        fraction = rayCount == 1 ? 0.5 : i / (rayCount − 1)
       </div>
-
-      <p>In the lecture's final code, this loop lives in a private helper called <code>#castRays()</code>. Your branch currently keeps it inside <code>update()</code>. The name of the method does not change the math; the two edits do.</p>
 
       <div class="table-wrap">
         <table>
-          <caption>The 3-ray fan with a 45° spread</caption>
+          <caption>The 8-ray fan with a 90° spread</caption>
           <thead>
             <tr>
               <th scope="col" class="num">i</th>
@@ -248,39 +252,272 @@ update(){
             <tr>
               <td class="num">0</td>
               <td class="num">0</td>
-              <td class="num">+22.5°</td>
-              <td class="num">car.angle + 22.5°</td>
+              <td class="num">+45.0°</td>
+              <td class="num">car.angle + 45.0°</td>
               <td>Leftmost</td>
             </tr>
             <tr>
               <td class="num">1</td>
-              <td class="num">0.5</td>
-              <td class="num">0°</td>
-              <td class="num">car.angle</td>
-              <td>Centre</td>
+              <td class="num">1/7</td>
+              <td class="num">+32.1°</td>
+              <td class="num">car.angle + 32.1°</td>
+              <td>Left</td>
             </tr>
             <tr>
               <td class="num">2</td>
+              <td class="num">2/7</td>
+              <td class="num">+19.3°</td>
+              <td class="num">car.angle + 19.3°</td>
+              <td>Left</td>
+            </tr>
+            <tr>
+              <td class="num">3</td>
+              <td class="num">3/7</td>
+              <td class="num">+6.4°</td>
+              <td class="num">car.angle + 6.4°</td>
+              <td>Near centre</td>
+            </tr>
+            <tr>
+              <td class="num">4</td>
+              <td class="num">4/7</td>
+              <td class="num">−6.4°</td>
+              <td class="num">car.angle − 6.4°</td>
+              <td>Near centre</td>
+            </tr>
+            <tr>
+              <td class="num">5</td>
+              <td class="num">5/7</td>
+              <td class="num">−19.3°</td>
+              <td class="num">car.angle − 19.3°</td>
+              <td>Right</td>
+            </tr>
+            <tr>
+              <td class="num">6</td>
+              <td class="num">6/7</td>
+              <td class="num">−32.1°</td>
+              <td class="num">car.angle − 32.1°</td>
+              <td>Right</td>
+            </tr>
+            <tr>
+              <td class="num">7</td>
               <td class="num">1</td>
-              <td class="num">−22.5°</td>
-              <td class="num">car.angle − 22.5°</td>
+              <td class="num">−45.0°</td>
+              <td class="num">car.angle − 45.0°</td>
               <td>Rightmost</td>
             </tr>
           </tbody>
         </table>
       </div>
 
-      <p>Why start at <code>+spread/2</code>? Because a positive angle turns left. Index 0 is the leftmost ray, and the loop sweeps to the right. The <code>rayCount === 1 ? 0.5</code> guard handles a single ray: <code>i/(rayCount−1)</code> would be <code>0/0</code>, so the code chooses the midpoint of the interval instead. One ray sits in the centre of the fan.</p>
+      <p>Why start at <code>+spread/2</code>? Because a positive angle turns left. Index 0 is the leftmost ray, and the loop sweeps to the right. There is no ray at exactly <code>car.angle</code> when the count is even: the two middle rays straddle the heading at <code>±6.4°</code>. That is a property of 8 rays, not a problem. With 9 rays, the middle ray would point straight ahead.</p>
 
       <aside class="callout callout--note">
         <p class="callout-title">Radians, not degrees</p>
-        <p><code>raySpread</code> is in radians because <code>Math.sin</code> and <code>Math.cos</code> expect radians. <code>π/4</code> is 45°. To convert: <code>degrees * Math.PI / 180</code>. The lab shows degrees because they are easier to read; it converts before computing.</p>
+        <p><code>raySpread</code> is in radians because <code>Math.sin</code> and <code>Math.cos</code> expect radians. <code>π/2</code> is 90°. To convert: <code>degrees * Math.PI / 180</code>. The lab shows degrees because they are easier to read; it converts before computing.</p>
       </aside>
 
       <aside class="callout callout--gold">
         <p class="callout-title">The ray angle is not the car angle</p>
         <p><code>car.angle</code> is the centre of the fan. Each ray adds its own offset. If the car turns 10° left, every ray turns 10° left with it. The fan is rigid; the car rotates the whole fan.</p>
       </aside>
+
+      <h3>The vector operations behind the sensor</h3>
+
+      <p>The code uses a plain <code>{x, y}</code> object for both a <strong>point</strong> (a location) and a <strong>vector</strong> (a displacement). The role is decided by how the object is used, not by its type. Four operations do all the work in this lesson:</p>
+
+      <div class="table-wrap">
+        <table>
+          <caption>Vector toolkit used by <code>sensor.js</code> and <code>util.js</code></caption>
+          <thead>
+            <tr>
+              <th scope="col">Operation</th>
+              <th scope="col">Formula</th>
+              <th scope="col">Geometric meaning</th>
+              <th scope="col">Where it appears</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Subtract</td>
+              <td><code>(B − A) = (B.x − A.x, B.y − A.y)</code></td>
+              <td>The arrow from A to B</td>
+              <td><code>r</code>, <code>s</code>, <code>w</code></td>
+            </tr>
+            <tr>
+              <td>Scale</td>
+              <td><code>L · d = (L · d.x, L · d.y)</code></td>
+              <td>Same direction, length multiplied by L</td>
+              <td><code>end = start + L · d</code></td>
+            </tr>
+            <tr>
+              <td>Add</td>
+              <td><code>A + v = (A.x + v.x, A.y + v.y)</code></td>
+              <td>Move the point A by the vector v</td>
+              <td>Ray endpoint, <code>P = A + t r</code></td>
+            </tr>
+            <tr>
+              <td>Cross product</td>
+              <td><code>p × q = p.x · q.y − p.y · q.x</code></td>
+              <td>Signed area of the parallelogram; zero when parallel</td>
+              <td><code>tTop</code>, <code>uTop</code>, <code>bottom</code></td>
+            </tr>
+            <tr>
+              <td>Dot product</td>
+              <td><code>p · q = p.x · q.x + p.y · q.y</code></td>
+              <td>How much of q points along p</td>
+              <td>Not used here; useful for projections</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="formula-block">
+        <span class="formula-label">Why the direction vector has length 1</span>
+        d = (−sin θ, −cos θ)<br>
+        |d| = √(sin²θ + cos²θ) = √1 = 1<br><br>
+        end = start + L · d&nbsp;&nbsp;&nbsp;⇒&nbsp;&nbsp;&nbsp;|end − start| = L
+      </div>
+
+      <p>That last line is the whole reason the code can multiply by <code>rayLength</code>: the sine/cosine pair is already a <strong>unit vector</strong>. Scaling it changes the length without changing the direction.</p>
+
+      <aside class="callout callout--gold">
+        <p class="callout-title">The cross product is not 3D magic</p>
+        <p><code>p × q</code> takes two 2D vectors and returns one number. Its absolute value is the area of the parallelogram they span; its sign tells you which side q lies on. When the area is zero, the vectors point along the same line, so the intersection equations have no unique solution. That is exactly what <code>bottom == 0</code> tests in <code>getIntersection</code>.</p>
+      </aside>
+
+      <h3>Vector lab: drag the vectors, watch the numbers</h3>
+
+      <p>Drag the orange ray endpoint or the blue <code>q</code> handle. The left picture turns one angle into two signed components. The right picture shows the cross product as an area and the dot product as a shadow. Every number below feeds directly into <code>getIntersection</code>.</p>
+
+      <figure class="figure-wide">
+        <div class="lab" data-vector-lab>
+          <div class="lab-head">
+            <div>
+              <p class="eyebrow">Interactive · Vector lab</p>
+              <h3>One angle, two components, one area</h3>
+            </div>
+          </div>
+
+          <div class="lab-grid">
+            <div class="lab-panel" data-vector-lab-ray>
+              <svg class="lab-svg" viewBox="0 0 300 300" role="img" aria-labelledby="vector-ray-title">
+                <title id="vector-ray-title">A ray from a fixed start. Drag its endpoint to change the angle and length; dashed legs show the horizontal and vertical components.</title>
+                <defs>
+                  <pattern id="vector-grid" width="20" height="20" patternUnits="userSpaceOnUse">
+                    <path d="M 20 0 L 0 0 0 20" fill="none" stroke="var(--rule)" stroke-width="1"></path>
+                  </pattern>
+                  <marker id="vector-arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+                    <path d="M 0 0 L 8 3 L 0 6 z" fill="var(--accent)"></path>
+                  </marker>
+                </defs>
+
+                <rect x="8" y="8" width="284" height="284" rx="4" fill="url(#vector-grid)" opacity="0.45"></rect>
+                <line class="vector-axis" x1="12" y1="160" x2="288" y2="160"></line>
+                <line class="vector-axis" x1="150" y1="12" x2="150" y2="288"></line>
+                <text x="16" y="152" class="axis-label">x →</text>
+                <text x="154" y="24" class="axis-label">up = −y</text>
+
+                <polyline data-vector-arc class="vector-arc"></polyline>
+                <line data-vector-leg-x class="vector-leg"></line>
+                <line data-vector-leg-y class="vector-leg"></line>
+                <line data-vector-unit class="vector-arrow vector-arrow--unit" marker-end="url(#vector-arrow-accent)"></line>
+                <line data-vector-scaled class="vector-arrow" marker-end="url(#vector-arrow-accent)"></line>
+
+                <circle data-vector-start class="vector-dot" r="4"></circle>
+                <circle data-vector-end class="vector-handle" r="6"></circle>
+
+                <text x="158" y="132" class="vector-text vector-text--accent">d</text>
+                <text data-vector-dx-label class="vector-text vector-text--blue"></text>
+                <text data-vector-dy-label class="vector-text vector-text--blue"></text>
+                <text data-vector-angle-label class="vector-text vector-text--gold"></text>
+                <text x="16" y="286" class="diagram-label">drag the orange endpoint</text>
+              </svg>
+            </div>
+
+            <div class="lab-panel" data-vector-lab-cross>
+              <svg class="lab-svg" viewBox="0 0 300 300" role="img" aria-labelledby="vector-cross-title">
+                <title id="vector-cross-title">Two vectors p and q span a parallelogram. Drag q to change the cross-product area and the dot-product projection.</title>
+                <defs>
+                  <pattern id="vector-grid-cross" width="20" height="20" patternUnits="userSpaceOnUse">
+                    <path d="M 20 0 L 0 0 0 20" fill="none" stroke="var(--rule)" stroke-width="1"></path>
+                  </pattern>
+                  <marker id="vector-arrow-blue" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+                    <path d="M 0 0 L 8 3 L 0 6 z" fill="var(--blue)"></path>
+                  </marker>
+                </defs>
+
+                <rect x="8" y="8" width="284" height="284" rx="4" fill="url(#vector-grid-cross)" opacity="0.45"></rect>
+                <line class="vector-axis" x1="12" y1="140" x2="288" y2="140"></line>
+                <line class="vector-axis" x1="100" y1="12" x2="100" y2="288"></line>
+                <text x="16" y="132" class="axis-label">p direction</text>
+
+                <polygon data-vector-area-shape class="vector-area"></polygon>
+                <line data-vector-projection class="vector-projection"></line>
+                <line data-vector-p class="vector-p" marker-end="url(#vector-arrow-accent)"></line>
+                <line data-vector-q class="vector-q" marker-end="url(#vector-arrow-blue)"></line>
+
+                <circle cx="100" cy="140" class="vector-dot" r="4"></circle>
+                <circle data-vector-q-handle class="vector-handle" r="6"></circle>
+
+                <text x="214" y="132" class="vector-text vector-text--accent">p</text>
+                <text data-vector-q-label class="vector-text vector-text--blue">q</text>
+                <text data-vector-area-label class="vector-text vector-text--gold"></text>
+                <text data-vector-proj-label class="vector-text"></text>
+                <text x="16" y="286" class="diagram-label">drag the blue q handle</text>
+              </svg>
+            </div>
+          </div>
+
+          <div class="lab-controls">
+            <label for="vector-angle">
+              <span>Ray angle <output data-vector-angle-out for="vector-angle">30°</output></span>
+              <input id="vector-angle" type="range" min="-180" max="180" step="5" value="30" data-vector-angle>
+            </label>
+            <label for="vector-length">
+              <span>Ray length <output data-vector-length-out for="vector-length">100</output></span>
+              <input id="vector-length" type="range" min="30" max="130" step="5" value="100" data-vector-length>
+            </label>
+            <label for="vector-qx">
+              <span>q.x <output data-vector-qx-out for="vector-qx">50</output></span>
+              <input id="vector-qx" type="range" min="-80" max="80" step="5" value="50" data-vector-qx>
+            </label>
+            <label for="vector-qy">
+              <span>q.y <output data-vector-qy-out for="vector-qy">80</output></span>
+              <input id="vector-qy" type="range" min="-80" max="80" step="5" value="80" data-vector-qy>
+            </label>
+            <div class="lab-buttons">
+              <button type="button" class="btn" data-vector-preset="reset">Reset</button>
+              <button type="button" class="btn" data-vector-preset="example">Worked example</button>
+              <button type="button" class="btn" data-vector-preset="parallel">Parallel</button>
+            </div>
+          </div>
+
+          <div class="lab-readout">
+            <div><span>d = (−sin θ, −cos θ)</span><code data-vector-out-d></code></div>
+            <div><span>L · d</span><code data-vector-out-ld></code></div>
+            <div><span>endpoint Δ</span><code data-vector-out-delta></code></div>
+            <div><span>|L · d|</span><code data-vector-out-length></code></div>
+            <div><span>Δx</span><code data-vector-out-dx></code></div>
+            <div><span>Δy</span><code data-vector-out-dy></code></div>
+            <div><span>p</span><code data-vector-out-p></code></div>
+            <div><span>q</span><code data-vector-out-q></code></div>
+            <div><span>p × q</span><code data-vector-out-cross></code></div>
+            <div><span>area |p × q|</span><code data-vector-out-area></code></div>
+            <div><span>p · q</span><code data-vector-out-dot></code></div>
+            <div><span>projection</span><code data-vector-out-proj></code></div>
+            <p class="formula" data-vector-status aria-live="polite"></p>
+          </div>
+        </div>
+        <figcaption><strong>Figure 1.</strong> Drag the ray endpoint to change θ and L; drag the blue handle to change q. The dashed legs are the signed sine/cosine components. The shaded parallelogram has area <code>|p × q|</code>; the dashed shadow is the dot-product projection. Press “Parallel” to collapse the area to zero.</figcaption>
+      </figure>
+
+      <ol>
+        <li><strong>Sweep the ray.</strong> Drag the endpoint to 0°, ±90°, and 180°. Watch Δx and Δy change signs. Sine always owns x; cosine always owns y. The dashed legs show which component is larger.</li>
+        <li><strong>Collapse the area.</strong> Drag the blue <code>q</code> handle until it lies on the same line as <code>p</code>. The parallelogram becomes a line, <code>p × q = 0</code>, and <code>bottom = 0</code>. That is the parallel case in <code>getIntersection</code>.</li>
+        <li><strong>Press “Worked example.”</strong> Now <code>q</code> is vertical, like the border in Section 04, and <code>p</code> is horizontal, like the ray. Compare <code>p × q</code> with <code>bottom = r × s = 40,000</code> from the worked example.</li>
+      </ol>
+
+      <p>The next section turns these operations into two equations. If you want the full toolkit on one page, keep <a href="../reference/ray-intersection.html">the ray-intersection reference</a> open beside the code.</p>
     </section>
 
     <section aria-labelledby="section-hit">
@@ -347,7 +584,7 @@ update(){
           <text x="250" y="222" class="diagram-label">ray: A → P is t of the way to B</text>
           <text x="392" y="250" class="diagram-label">border: C → P is u of the way to D</text>
         </svg>
-        <figcaption><strong>Figure 1.</strong> The hit <code>P</code> is one point, but it has two addresses: <code>t</code> along the ray and <code>u</code> along the border. A hit requires both fractions to be between 0 and 1.</figcaption>
+        <figcaption><strong>Figure 2.</strong> The hit <code>P</code> is one point, but it has two addresses: <code>t</code> along the ray and <code>u</code> along the border. A hit requires both fractions to be between 0 and 1.</figcaption>
       </figure>
 
       <aside class="callout callout--gold">
@@ -412,7 +649,7 @@ update(){
 
       <h3>A worked example</h3>
 
-      <p>Put the car in the right lane at <code>(320, 200)</code> and fire a ray straight right, 100 units long. The right border is the segment from <code>(380, 0)</code> to <code>(380, 400)</code>.</p>
+      <p>For clean arithmetic, put the car at <code>(320, 200)</code> and fire a ray straight right, 100 units long. (The branch's sensor uses 200, but the numbers are easier to follow at 100.) The right border is the segment from <code>(380, 0)</code> to <code>(380, 400)</code>.</p>
 
       <div class="table-wrap">
         <table>
@@ -626,7 +863,7 @@ function getIntersection(A, B, C, D) {
 
       <aside class="callout callout--note">
         <p class="callout-title">A float comparison to keep in mind</p>
-        <p>The lecture uses <code>e.offset == minOffset</code> when it picks the closest hit. It works because the values come from the same computation, but floating-point equality is fragile in general. <code>&lt;=</code> or a small tolerance is safer if you rewrite this code.</p>
+        <p>The branch uses <code>e.offset === minOffset</code> when it picks the closest hit. It works because <code>minOffset</code> is copied straight out of the same array, so it is the exact same number. Floating-point equality is fragile in general; if you rewrite this, return the minimum touch directly instead of comparing floats.</p>
       </aside>
     </section>
 
@@ -637,25 +874,32 @@ function getIntersection(A, B, C, D) {
 
       <figure class="code-figure">
         <pre><code><span class="comment">// sensor.js — the road-border part of getReading()</span>
-#getReading(ray, roadBorders) {
+#getReading(ray, roadBorders){
     let touches = [];
 
-    for (let i = 0; i &lt; roadBorders.length; i++) {
+    for(let i=0; i &lt; roadBorders.length; i++){
         const touch = getIntersection(
             ray[0], ray[1],
-            roadBorders[i][0], roadBorders[i][1]
+            roadBorders[i][0],
+            roadBorders[i][1]
         );
-        if (touch) touches.push(touch);
+        if(touch){
+            touches.push(touch);
+        }
     }
 
-    if (touches.length == 0) return null;
-
-<span class="hl">    const offsets = touches.map(e =&gt; e.offset);
-    const minOffset = Math.min(...offsets);
-    return touches.find(e =&gt; e.offset == minOffset);</span>
+    if(touches.length == 0){
+        return null;
+    }else {
+<span class="hl">        const offsets = touches.map(e =&gt; e.offset);
+        const minOffset = Math.min(...offsets);
+        return touches.find(e =&gt; e.offset === minOffset);</span>
+    }
 }</code></pre>
         <figcaption><strong>Listing 5.</strong> Collect every border hit. If there are none, return <code>null</code>. Otherwise return the touch with the smallest offset. The lecture's full method also takes <code>traffic</code>; Listing 6 adds that loop.</figcaption>
       </figure>
+
+      <p><code>update(roadBorders)</code> calls <code>#getReading</code> once per ray and stores the results in <code>this.readings</code>. A <code>null</code> reading means “nothing within <code>rayLength</code>”; a reading object is the nearest hit on that ray.</p>
 
       <p>Why is the smallest <code>offset</code> the closest object? Every ray in this sensor has the same <code>rayLength</code>. Distance along a ray is <code>offset × rayLength</code>, so the smallest offset is the smallest distance. If you ever give rays different lengths, compare <code>offset × length</code> instead.</p>
 
@@ -696,14 +940,14 @@ for (let i = 0; i &lt; traffic.length; i++) {
     <section aria-labelledby="section-lab">
       <h2 id="section-lab"><span class="sec-num">Section 07</span>Lab: cast the fan, then inspect one hit</h2>
 
-      <p>Predict before you move a slider. The first lab casts the whole fan. The second lab freezes one ray and one segment so you can watch <code>t</code> and <code>u</code> change.</p>
+      <p>Predict before you move a slider or drag a handle. The first lab casts the whole fan — drag the car along the road. The second lab freezes one ray and one segment — drag <code>A</code>, <code>B</code>, or the border itself and watch <code>t</code> and <code>u</code> change.</p>
 
       <figure class="figure-wide">
         <div class="lab" data-fan-lab>
           <div class="lab-head">
             <div>
               <p class="eyebrow">Interactive · Fan lab</p>
-              <h3>Three rays, two borders, one parked car</h3>
+              <h3>Eight rays, two borders, one parked car</h3>
             </div>
           </div>
 
@@ -740,7 +984,7 @@ for (let i = 0; i &lt; traffic.length; i++) {
                   <g data-fan-rays></g>
                   <g data-fan-hits></g>
 
-                  <g data-fan-car transform="translate(320 270)">
+                  <g data-fan-car class="lab-handle" transform="translate(320 270)">
                     <rect class="sensor-car" x="-13" y="-20" width="26" height="40" rx="5"></rect>
                     <line class="sensor-car-nose" x1="0" y1="-20" x2="0" y2="-28"></line>
                   </g>
@@ -761,16 +1005,16 @@ for (let i = 0; i &lt; traffic.length; i++) {
               <input id="fan-car-angle" type="range" min="-45" max="45" step="5" value="0" data-fan-car-angle>
             </label>
             <label for="fan-count">
-              <span>Rays <output data-fan-count-out for="fan-count">3</output></span>
-              <input id="fan-count" type="range" min="1" max="7" step="1" value="3" data-fan-count>
+              <span>Rays <output data-fan-count-out for="fan-count">8</output></span>
+              <input id="fan-count" type="range" min="1" max="12" step="1" value="8" data-fan-count>
             </label>
             <label for="fan-spread">
-              <span>Spread <output data-fan-spread-out for="fan-spread">45°</output></span>
-              <input id="fan-spread" type="range" min="0" max="120" step="5" value="45" data-fan-spread>
+              <span>Spread <output data-fan-spread-out for="fan-spread">90°</output></span>
+              <input id="fan-spread" type="range" min="0" max="120" step="5" value="90" data-fan-spread>
             </label>
             <label for="fan-length">
-              <span>Ray length <output data-fan-length-out for="fan-length">180</output></span>
-              <input id="fan-length" type="range" min="40" max="260" step="10" value="180" data-fan-length>
+              <span>Ray length <output data-fan-length-out for="fan-length">200</output></span>
+              <input id="fan-length" type="range" min="40" max="260" step="10" value="200" data-fan-length>
             </label>
             <label for="fan-obstacle">
               <span>Parked car <output data-fan-obstacle-out for="fan-obstacle">on</output></span>
@@ -782,24 +1026,24 @@ for (let i = 0; i &lt; traffic.length; i++) {
           </div>
 
           <div class="lab-readout">
-            <div><span>ray offsets</span><code data-fan-angles>+22.5°, 0°, −22.5°</code></div>
-            <div><span>hits</span><code data-fan-hits-out>2 of 3</code></div>
-            <div><span>nearest</span><code data-fan-nearest>140 · ray 2</code></div>
-            <div><span>range</span><code data-fan-range>180</code></div>
+            <div><span>ray offsets</span><code data-fan-angles>+45°, +32.1°, +19.3°, +6.4°, −6.4°, −19.3°, −32.1°, −45°</code></div>
+            <div><span>hits</span><code data-fan-hits-out>6 of 8</code></div>
+            <div><span>nearest</span><code data-fan-nearest>84.9 · ray 8</code></div>
+            <div><span>range</span><code data-fan-range>200</code></div>
             <p class="formula" data-fan-formula></p>
           </div>
         </div>
-        <figcaption><strong>Figure 2.</strong> The fan lab uses a longer ray (180) than the repo (100) so that the default view has something to hit. The car is at the right lane's centre. The solid part of each ray ends at the nearest hit; the dashed part is blocked or out of range.</figcaption>
+        <figcaption><strong>Figure 3.</strong> The lab starts with the branch's real settings: 8 rays, a 90° fan, and a 200-unit range. The car is at the right lane's centre; drag it to move it. The solid part of each ray ends at the nearest hit; the dashed part is blocked or out of range.</figcaption>
       </figure>
 
-      <p>Try these in order. Say the answer before moving the control.</p>
+      <p>Try these in order. Say the answer before you move a slider or drag the car.</p>
 
       <ol>
-        <li><strong>The default fan.</strong> With the car at <code>x = 320</code>, 3 rays, 45° spread, and length 180, which rays hit? Predict: the centre ray hits the parked car, the right ray hits the right border, the left ray misses. The readout should say <code>2 of 3</code>.</li>
-        <li><strong>Move the car to x = 200.</strong> The border hits disappear. The rightmost ray is only 22.5° away from straight up, so over 180 units it moves sideways by <code>180 · sin 22.5° ≈ 68.9</code>. It reaches <code>268.9</code>, still 111 units short of the right border. A long ray is not enough if it points the wrong way.</li>
-        <li><strong>Set the ray length to 100.</strong> The centre ray now ends at <code>y = 170</code>, below the parked car's bottom edge at <code>y = 130</code>. It misses. Range matters too.</li>
-        <li><strong>Set the ray count to 1.</strong> The single ray is the centre ray. Changing the spread no longer changes its angle, because <code>rayCount === 1</code> selects the midpoint of the interval. This is the guard from Section 02.</li>
-        <li><strong>Set the car angle to 20°.</strong> The whole fan rotates left. The offsets stay the same; every absolute ray angle gains 20°. Watch which hits appear and disappear.</li>
+        <li><strong>The default fan.</strong> With the car at <code>x = 320</code>, 8 rays, 90° spread, and length 200, which rays hit? Predict: the three right-side rays (indices 5, 6, 7) hit the right border; rays 2, 3, and 4 clip the parked car's bottom edge; rays 0 and 1 miss. The readout should say <code>6 of 8</code>, nearest <code>84.9</code> on ray 8.</li>
+        <li><strong>Move the car to x = 200.</strong> The border hits disappear. Two right-side rays now clip the parked car, because the car is 120 units farther left but still within the obstacle's x range. The readout should say <code>2 of 8</code>. A long ray is not enough if it points at empty road.</li>
+        <li><strong>Set the ray length to 100.</strong> The parked car is 140 units away vertically, so every obstacle hit disappears. Only the rightmost ray reaches the right border (<code>t ≈ 0.85</code>). Range matters too.</li>
+        <li><strong>Set the ray count to 1.</strong> The single ray points straight up, because <code>rayCount == 1</code> selects the midpoint of the interval. It hits the parked car at distance 140. Changing the spread no longer changes its angle. This is the guard from Section 02.</li>
+        <li><strong>Set the car angle to 20°.</strong> The whole fan rotates left. The offsets stay the same; every absolute ray angle gains 20°. The right border largely disappears from the fan, and the parked car catches more rays. Watch which hits appear and disappear.</li>
       </ol>
 
       <figure class="figure-wide">
@@ -828,12 +1072,12 @@ for (let i = 0; i &lt; traffic.length; i++) {
                 <text x="24" y="27" class="axis-label">one ray · one segment</text>
 
                 <g clip-path="url(#hit-lab-clip)">
-                  <line data-hit-segment class="segment-line" x1="380" y1="0" x2="380" y2="330"></line>
+                  <line data-hit-segment class="segment-line lab-handle" x1="380" y1="0" x2="380" y2="330"></line>
                   <line data-hit-tail class="ray-line--blocked" x1="410" y1="94" x2="410" y2="94" style="display: none;"></line>
                   <line data-hit-ray class="ray-line" x1="320" y1="250" x2="410" y2="94"></line>
 
-                  <circle data-hit-start class="ray-start" cx="320" cy="250" r="4"></circle>
-                  <circle data-hit-end class="ray-end" cx="410" cy="94" r="4"></circle>
+                  <circle data-hit-start class="ray-start lab-handle" cx="320" cy="250" r="4"></circle>
+                  <circle data-hit-end class="ray-end lab-handle" cx="410" cy="94" r="4"></circle>
                   <circle data-hit-point class="intersection-point" cx="380" cy="146" r="5"></circle>
                   <circle data-hit-ghost class="intersection-ghost" cx="380" cy="146" r="5" style="display: none;"></circle>
 
@@ -910,7 +1154,7 @@ for (let i = 0; i &lt; traffic.length; i++) {
             </div>
           </div>
         </div>
-        <figcaption><strong>Figure 3.</strong> The inspector uses the compact cross-product form from Section 04, so every number in the panel maps directly to the lesson. The hollow dot is the crossing of the infinite lines when the finite segments do not meet.</figcaption>
+        <figcaption><strong>Figure 4.</strong> Drag <code>A</code>, <code>B</code>, or the border to change the geometry; the sliders stay in sync. The inspector uses the compact cross-product form from Section 04, so every number in the panel maps directly to the lesson. The hollow dot is the crossing of the infinite lines when the finite segments do not meet.</figcaption>
       </figure>
 
       <p>Now inspect one hit at a time. The default is a hit: <code>t ≈ 0.667</code>, <code>u ≈ 0.443</code>.</p>
@@ -928,25 +1172,31 @@ for (let i = 0; i &lt; traffic.length; i++) {
     <section aria-labelledby="section-predict">
       <h2 id="section-predict"><span class="sec-num">Section 08</span>Predict, then inspect</h2>
 
-      <p>Open <code>index.html</code> with the developer console open. The sensor is not wired into <code>main.js</code> yet, so create one in the console. Make the two edits from Section 02 first; otherwise the first check will fail for the reason the lesson just described.</p>
+      <p>Open <code>index.html</code> with the developer console open. The sensor is already wired into the car: <code>car.update(road.borders)</code> moves the car and then calls <code>this.sensor.update(roadBorders)</code> every frame. Use a separate <code>probe</code> sensor in the console so the animation does not overwrite your experiment.</p>
+
+      <aside class="callout callout--note">
+        <p class="callout-title">Why the game starts with no readings</p>
+        <p><code>main.js</code> places the car at <code>road.getLaneCenter(1) = 200</code>. The borders are at <code>x = 20</code> and <code>x = 380</code>, so the nearest border is 180 units sideways. Even the outermost ray moves only <code>200 · sin 45° ≈ 141.4</code> units sideways. Every reading is <code>null</code> until the car steers closer or turns. That is geometry, not a bug; the lab puts the car in the right lane so the default view has hits.</p>
+      </aside>
 
       <ol>
-        <li><strong>Check that the fan rotates.</strong> Create a sensor, point the car straight up, and record the leftmost ray's endpoint. Then turn the car 45° left and record it again. The endpoint should move left. If it does not, the <code>+ this.car.angle</code> term is still missing.</li>
-        <li><strong>Test the intersection function directly.</strong> After you add <code>getIntersection</code> to <code>util.js</code>, call it with the worked example. The result should be <code>{x: 380, y: 200, offset: 0.6}</code>.</li>
+        <li><strong>Check the fan's size.</strong> A fresh <code>Sensor</code> has 8 rays, each 200 long, with a 90° spread. <code>probe.rays.length</code> should be <code>8</code>. If it is not, your constructor settings differ from the branch.</li>
+        <li><strong>Check that the fan rotates.</strong> Point the probe up, record the leftmost ray's endpoint, then turn the probe 45° left. The endpoint should move left. If it does not, the <code>+ this.car.angle</code> term is missing.</li>
+        <li><strong>Test the intersection function directly.</strong> Call it with the worked example. The result should be <code>{x: 380, y: 200, offset: 0.6}</code>.</li>
         <li><strong>Test a miss and a parallel pair.</strong> Shorten the ray so it stops before the border: the result should be <code>null</code>, even though the infinite lines still cross. Then make the ray and the border horizontal: <code>bottom = 0</code>, so the result is also <code>null</code>.</li>
       </ol>
 
       <figure class="code-figure">
-        <pre><code><span class="comment">// browser console — after adding getIntersection()</span>
-window.sensor = new Sensor(car);
+        <pre><code><span class="comment">// browser console — sensor.js and util.js are already loaded</span>
+const probe = new Sensor({ x: 200, y: 200, angle: 0 });
+probe.update(road.borders);
 
-car.angle = 0;
-sensor.update();
-const straight = sensor.rays[0][1];
+probe.rays.length;                 <span class="comment">// 8</span>
+probe.rays[0][1];                  <span class="comment">// leftmost endpoint</span>
 
-car.angle = Math.PI / 4;
-sensor.update();
-const turned = sensor.rays[0][1];
+probe.car.angle = Math.PI / 4;     <span class="comment">// turn the probe 45° left</span>
+probe.update(road.borders);
+probe.rays[0][1];                  <span class="comment">// endpoint moved left</span>
 
 <span class="comment">// worked example: hit at (380, 200), offset 0.6</span>
 getIntersection(
@@ -965,7 +1215,7 @@ getIntersection(
     {x: 320, y: 200}, {x: 420, y: 200},
     {x: 300, y: 150}, {x: 400, y: 150}
 );</code></pre>
-        <figcaption><strong>Listing 7.</strong> The first block checks the fan's rotation. The next three check the three outcomes of the intersection test: a hit, a finite-segment miss, and a parallel miss.</figcaption>
+        <figcaption><strong>Listing 7.</strong> The first block checks the fan's size and rotation. The last three check the three outcomes of the intersection test: a hit, a finite-segment miss, and a parallel miss.</figcaption>
       </figure>
 
       <aside class="callout callout--win">
@@ -982,7 +1232,7 @@ getIntersection(
       <div class="quiz" data-quiz data-correct-text="Correct — that is the right answer." data-wrong-text="Not quite — re-read the section and try again.">
         <div class="quiz-head">
           <div>
-            <h3>Six quick sensor checks</h3>
+            <h3>Nine quick sensor checks</h3>
             <p>All questions use the formulas from this lesson.</p>
           </div>
           <button type="button" class="btn btn-ghost" data-quiz-reset>Reset answers</button>
@@ -1059,6 +1309,42 @@ getIntersection(
           <p class="quiz-feedback" data-feedback aria-live="polite"></p>
           <p class="quiz-explain" data-explanation hidden>All rays share the same length, so distance = <code>offset × rayLength</code>. The smallest offset is the smallest distance. Everything behind that hit is occluded.</p>
         </div>
+
+        <div class="quiz-question" data-question>
+          <p class="quiz-prompt"><span class="quiz-num">Q7</span> Which term rotates the whole fan with the car?</p>
+          <div class="quiz-options" data-options>
+            <button type="button" class="quiz-option" data-option data-correct="true">+ this.car.angle</button>
+            <button type="button" class="quiz-option" data-option data-correct="false">+ this.raySpread</button>
+            <button type="button" class="quiz-option" data-option data-correct="false">+ this.rayLength</button>
+            <button type="button" class="quiz-option" data-option data-correct="false">+ this.rayCount</button>
+          </div>
+          <p class="quiz-feedback" data-feedback aria-live="polite"></p>
+          <p class="quiz-explain" data-explanation hidden>The <code>lerp</code> produces the fan's offset from the heading. Adding <code>this.car.angle</code> turns every ray by the car's rotation. The other settings change the fan's size or range, not its direction.</p>
+        </div>
+
+        <div class="quiz-question" data-question>
+          <p class="quiz-prompt"><span class="quiz-num">Q8</span> Which vector points from the ray's start to the border's start?</p>
+          <div class="quiz-options" data-options>
+            <button type="button" class="quiz-option" data-option data-correct="true">C − A</button>
+            <button type="button" class="quiz-option" data-option data-correct="false">A − C</button>
+            <button type="button" class="quiz-option" data-option data-correct="false">D − C</button>
+            <button type="button" class="quiz-option" data-option data-correct="false">B − A</button>
+          </div>
+          <p class="quiz-feedback" data-feedback aria-live="polite"></p>
+          <p class="quiz-explain" data-explanation hidden><code>C − A</code> is the vector <code>w</code>: “border start minus ray start.” <code>B − A</code> is the ray direction and <code>D − C</code> is the border direction.</p>
+        </div>
+
+        <div class="quiz-question" data-question>
+          <p class="quiz-prompt"><span class="quiz-num">Q9</span> How does the sensor handle a future traffic car?</p>
+          <div class="quiz-options" data-options>
+            <button type="button" class="quiz-option" data-option data-correct="true">As polygon edges</button>
+            <button type="button" class="quiz-option" data-option data-correct="false">As one centre point</button>
+            <button type="button" class="quiz-option" data-option data-correct="false">As a longer ray</button>
+            <button type="button" class="quiz-option" data-option data-correct="false">As a wider fan</button>
+          </div>
+          <p class="quiz-feedback" data-feedback aria-live="polite"></p>
+          <p class="quiz-explain" data-explanation hidden>A car outline is a closed polygon. Each edge is a segment, and the same <code>getIntersection</code> tests every edge. The nearest offset across all edges and borders wins.</p>
+        </div>
       </div>
     </section>
 
@@ -1094,7 +1380,9 @@ getIntersection(
         </div>
       </div>
 
-      <p>When you finish, explain why <code>bottom = 0</code> means no unique hit, and why both <code>t</code> and <code>u</code> must be inside <code>[0, 1]</code>. Then add <code>getIntersection</code> to <code>util.js</code>, and <code>#castRays</code> and <code>#getReading</code> to <code>sensor.js</code>. The code should read like the derivation, not like a magic spell.</p>
+      <p>When you finish, explain why <code>bottom = 0</code> means no unique hit, and why both <code>t</code> and <code>u</code> must be inside <code>[0, 1]</code>. Then annotate <code>util.js</code> and <code>sensor.js</code> with the vector names: <code>r</code>, <code>s</code>, <code>w</code>, <code>t</code>, <code>u</code>. The code should read like the derivation, not like a magic spell.</p>
+
+      <p>Two extensions to try when you are ready. First, change <code>rayCount</code> to 5 and predict which rays hit before you run it. Second, add a traffic polygon to <code>#getReading</code>: the loop in Section 06 is already the shape of the solution. Both exercises reuse the same three vectors and the same intersection test.</p>
     </section>
 
     <aside class="teacher">
@@ -1107,11 +1395,12 @@ getIntersection(
         <span>Reference: <a href="../reference/ray-intersection.html">Ray intersection</a> · <a href="../reference/road-geometry.html">Road geometry</a> · <a href="../reference/trig-glossary.html">Glossary</a></span>
         <span>Previous: <a href="0003-road-geometry.html">Lanes are fractions of the road</a> · Next: traffic polygons</span>
       </nav>
-      <p>Lesson 04 · <a href="../MISSION.md">Mission: Trigonometry for a Self-Driving Car</a> · 21 November 2026</p>
+      <p>Lesson 04 · <a href="../MISSION.md">Mission: Trigonometry for a Self-Driving Car</a> · 23 November 2026</p>
     </footer>
   </article>
 
   <script src="../assets/quiz.js"></script>
+  <script src="../assets/vector-lab.js"></script>
   <script src="../assets/sensor-lab.js"></script>
 </body>
 </html>

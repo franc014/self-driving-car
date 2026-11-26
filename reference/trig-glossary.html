@@ -105,6 +105,63 @@
       <dt id="segment">Segment</dt>
       <dd>A straight piece of line defined by two endpoints. The road borders are stored as segments so a sensor ray can later intersect them. <a href="../reference/road-geometry.html#ref-borders">See the border structure.</a></dd>
 
+      <dt id="sensor">Sensor</dt>
+      <dd>The car's artificial proximity detector. In this project it is a fan of rays; each ray finds the nearest segment it crosses within <code>rayLength</code>, and the result is stored as a <a href="#reading">reading</a>. <a href="../lessons/0004-ray-casting-and-intersection.html#section-fan">See the sensor fan.</a></dd>
+
+      <dt id="ray">Ray</dt>
+      <dd>A start point plus a direction and a maximum length. It is a segment whose second endpoint is computed as <code>start + length · direction</code>. <a href="../lessons/0004-ray-casting-and-intersection.html#section-ray">See the ray endpoint.</a></dd>
+
+      <dt id="ray-casting">Ray casting</dt>
+      <dd>Finding what a ray meets first by testing it against scene geometry. In this project the geometry is a list of <a href="#segment">segments</a>, not a pixel grid. <a href="../reference/ray-intersection.html#ref-intersection">See the intersection test.</a></dd>
+
+      <dt id="ray-fan">Ray fan</dt>
+      <dd>The set of rays produced by sweeping an angle from <code>+raySpread/2</code> to <code>−raySpread/2</code> with <a href="#linear-interpolation">lerp</a>, then adding <code>car.angle</code>. The fan is rigid: turning the car turns every ray. <a href="../lessons/0004-ray-casting-and-intersection.html#section-fan">See the fan table.</a></dd>
+
+      <dt id="spread">Spread</dt>
+      <dd>The total angle between the first and last ray of a fan, not the gap between neighbours. This branch uses <code>Math.PI / 2</code>, which is 90°. The gap is <code>spread / (rayCount − 1)</code>. <a href="../lessons/0004-ray-casting-and-intersection.html#section-fan">See the 8-ray fan.</a></dd>
+
+      <dt id="unit-vector">Unit vector</dt>
+      <dd>A vector of length 1. The car's direction <code>(−sin θ, −cos θ)</code> is a unit vector because <code>sin²θ + cos²θ = 1</code>. Multiplying it by a length produces a vector of that length. <a href="../lessons/0004-ray-casting-and-intersection.html#section-ray">See the unit-vector proof.</a></dd>
+
+      <dt id="direction-vector">Direction vector</dt>
+      <dd>The vector that says where a line or ray points, without its length. For a ray <code>A → B</code>, the direction is <code>r = B − A</code>. For a border <code>C → D</code>, it is <code>s = D − C</code>. <a href="../reference/ray-intersection.html#ref-intersection">See the three vectors.</a></dd>
+
+      <dt id="scalar-multiplication">Scalar multiplication</dt>
+      <dd>Multiplying a vector by a single number: <code>k · (x, y) = (k·x, k·y)</code>. It changes length but not direction (a negative <code>k</code> also reverses direction). The ray endpoint uses <code>rayLength · direction</code>.</dd>
+
+      <dt id="vector-subtraction">Vector subtraction</dt>
+      <dd><code>B − A = (B.x − A.x, B.y − A.y)</code>, the arrow from A to B. It turns two points into a direction vector. <a href="../reference/ray-intersection.html#ref-vector">See the vector toolkit.</a></dd>
+
+      <dt id="cross-product">Cross product (2D)</dt>
+      <dd><code>p × q = p.x·q.y − p.y·q.x</code>. It returns one number: the signed area of the parallelogram spanned by p and q. Zero means the vectors are parallel. <code>getIntersection</code> uses three of these as <code>tTop</code>, <code>uTop</code>, and <code>bottom</code>. <a href="../lessons/0004-ray-casting-and-intersection.html#section-ray">Drag the area in the vector lab.</a> <a href="../lessons/0004-ray-casting-and-intersection.html#section-solve">See the derivation.</a></dd>
+
+      <dt id="determinant">Determinant</dt>
+      <dd>Another name for the signed-area number produced by the 2D cross product. In the intersection formula the determinant is the denominator; dividing by it cancels the area and leaves a fraction. <a href="../reference/ray-intersection.html#ref-intersection">See why the denominator is an area.</a></dd>
+
+      <dt id="parametric-equation">Parametric equation</dt>
+      <dd>Writing a point as a start plus a fraction of a direction: <code>P(t) = A + t(B − A)</code>. The same <code>t</code> applies to x and y, so the point stays on the straight segment. <a href="../lessons/0004-ray-casting-and-intersection.html#section-hit">See the two segment equations.</a></dd>
+
+      <dt id="intersection">Intersection</dt>
+      <dd>A point shared by two geometric objects. For two segments, it exists only when both fractions are inside <code>[0, 1]</code>. <a href="../lessons/0004-ray-casting-and-intersection.html#section-solve">See the bounds check.</a></dd>
+
+      <dt id="offset">Offset</dt>
+      <dd>The <code>t</code> value returned by <code>getIntersection</code>. It is the fraction along the ray, so distance is <code>offset × rayLength</code>. Comparing offsets is how the sensor chooses the nearest hit. <a href="../lessons/0004-ray-casting-and-intersection.html#section-reading">See the nearest-hit code.</a></dd>
+
+      <dt id="reading">Reading</dt>
+      <dd>One ray's result for one frame: the nearest touch object, or <code>null</code> when no segment is within range. The sensor stores one reading per ray in <code>this.readings</code>. <a href="../lessons/0004-ray-casting-and-intersection.html#section-reading">See the reading loop.</a></dd>
+
+      <dt id="occlusion">Occlusion</dt>
+      <dd>Hiding something behind a nearer object. A sensor keeps only the smallest offset, so everything beyond the first hit is occluded. A traffic car in front of a border hides the border. <a href="../lessons/0004-ray-casting-and-intersection.html#section-reading">See nearest-hit selection.</a></dd>
+
+      <dt id="polygon">Polygon</dt>
+      <dd>A closed shape described by a list of points. Each pair of consecutive points is an <a href="#edge">edge</a>; the last point connects back to the first. A future traffic car is a polygon. <a href="../reference/ray-intersection.html#ref-objects">See the object table.</a></dd>
+
+      <dt id="edge">Edge</dt>
+      <dd>One side of a <a href="#polygon">polygon</a>, represented as a <a href="#segment">segment</a>. The sensor tests every edge with the same <code>getIntersection</code> function it uses for road borders.</dd>
+
+      <dt id="collision-detection">Collision detection</dt>
+      <dd>Testing whether two shapes overlap. For two car polygons, test every edge of one against every edge of the other. It is the same segment-intersection test with a different caller. <a href="../reference/ray-intersection.html#ref-objects">See the reuse table.</a></dd>
+
       <dt id="world-coordinates">World coordinates</dt>
       <dd>The coordinates the road and car store, independent of the viewport. The camera translates world coordinates into screen coordinates at draw time. <a href="../lessons/0003-road-geometry.html#section-camera">See the camera section.</a></dd>
 
@@ -118,9 +175,9 @@
     <footer class="lesson-footer">
       <nav class="footer-nav" aria-label="Reference navigation">
         <span><a href="../lessons/0001-angle-to-motion.html">← Lesson 01: One angle, two directions</a></span>
-        <span><a href="trig-for-car-movement.html">Cheat sheet →</a></span>
+        <span><a href="../lessons/0004-ray-casting-and-intersection.html">Lesson 04: Sensor rays →</a></span>
       </nav>
-      <p>Reference 02 · Trigonometry for a Self-Driving Car · 16 November 2026</p>
+      <p>Reference 02 · Trigonometry for a Self-Driving Car · 23 November 2026</p>
     </footer>
   </article>
 </body>
